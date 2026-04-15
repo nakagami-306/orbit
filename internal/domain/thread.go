@@ -232,7 +232,7 @@ func (s *ThreadService) ListThreads(ctx context.Context, projectEntityID int64, 
 	}
 	defer rows.Close()
 
-	var threads []Thread
+	threads := make([]Thread, 0)
 	for rows.Next() {
 		var t Thread
 		if err := rows.Scan(&t.EntityID, &t.StableID, &t.ProjectID, &t.Title, &t.Question, &t.Status); err != nil {
@@ -255,7 +255,7 @@ func (s *ThreadService) GetEntries(ctx context.Context, threadEntityID int64) ([
 	}
 	defer rows.Close()
 
-	var entries []Entry
+	entries := make([]Entry, 0)
 	for rows.Next() {
 		var e Entry
 		var targetID sql.NullInt64

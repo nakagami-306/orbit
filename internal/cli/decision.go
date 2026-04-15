@@ -47,7 +47,7 @@ func newDecisionLogCmd(app *App) *cobra.Command {
 				Author    string `json:"author"`
 				Instant   string `json:"instant"`
 			}
-			var entries []entry
+			entries := make([]entry, 0)
 			for rows.Next() {
 				var e entry
 				if err := rows.Scan(&e.StableID, &e.Title, &e.Rationale, &e.Author, &e.Instant); err != nil {
@@ -127,7 +127,7 @@ func newDecisionShowCmd(app *App) *cobra.Command {
 				Value          string `json:"value"`
 				Op             int    `json:"op"`
 			}
-			var changes []change
+			changes := make([]change, 0)
 			for datomRows.Next() {
 				var c change
 				if err := datomRows.Scan(&c.EntityStableID, &c.EntityType, &c.Attribute, &c.Value, &c.Op); err != nil {

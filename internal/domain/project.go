@@ -145,7 +145,7 @@ func (s *ProjectService) ListProjects(ctx context.Context, statusFilter string) 
 	}
 	defer rows.Close()
 
-	var projects []Project
+	projects := make([]Project, 0)
 	for rows.Next() {
 		var p Project
 		if err := rows.Scan(&p.EntityID, &p.StableID, &p.Name, &p.Description, &p.Status); err != nil {
@@ -181,7 +181,7 @@ func (s *ProjectService) GetSections(ctx context.Context, projectEntityID, branc
 	}
 	defer rows.Close()
 
-	var sections []Section
+	sections := make([]Section, 0)
 	for rows.Next() {
 		var sec Section
 		var isStale int

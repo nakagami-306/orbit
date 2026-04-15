@@ -25,9 +25,11 @@ func NewRootCmd() *cobra.Command {
 	app := &App{}
 
 	root := &cobra.Command{
-		Use:   "orbit",
-		Short: "Project state version control",
-		Long:  "Orbit — version-control your project's design state, decisions, and progress.",
+		Use:           "orbit",
+		Short:         "Project state version control",
+		Long:          "Orbit — version-control your project's design state, decisions, and progress.",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// Skip DB open for init command (it handles its own DB)
 			if cmd.Name() == "init" {

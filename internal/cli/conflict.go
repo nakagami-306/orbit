@@ -48,7 +48,7 @@ func newConflictListCmd(app *App) *cobra.Command {
 				Status   string `json:"status"`
 				Section  string `json:"section"`
 			}
-			var entries []entry
+			entries := make([]entry, 0)
 			for rows.Next() {
 				var e entry
 				rows.Scan(&e.StableID, &e.Field, &e.Status, &e.Section)
@@ -107,7 +107,7 @@ func newConflictShowCmd(app *App) *cobra.Command {
 				Branch string `json:"branch"`
 				Value  string `json:"value"`
 			}
-			var sides []side
+			sides := make([]side, 0)
 			if sideRows != nil {
 				for sideRows.Next() {
 					var s side

@@ -50,7 +50,7 @@ func newLogCmd(app *App) *cobra.Command {
 				Author   string `json:"author"`
 				Instant  string `json:"instant"`
 			}
-			var entries []entry
+			entries := make([]entry, 0)
 			for rows.Next() {
 				var e entry
 				rows.Scan(&e.Project, &e.StableID, &e.Title, &e.Author, &e.Instant)
