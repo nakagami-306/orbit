@@ -31,9 +31,15 @@ func NewRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// Skip DB open for init command (it handles its own DB)
+			// Skip DB open for commands that handle their own DB
 			if cmd.Name() == "init" {
 				return nil
+			}
+			// ui and its subcommands manage their own lifecycle
+			for c := cmd; c != nil; c = c.Parent() {
+				if c.Name() == "ui" {
+					return nil
+				}
 			}
 			dbPath := workspace.DBPath()
 			d, err := orbitdb.Open(dbPath)
@@ -75,6 +81,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(newMilestoneCmd(app))
 	root.AddCommand(newDiffCmd(app))
 	root.AddCommand(newLogCmd(app))
+	root.AddCommand(newUICmd(app))
 
 	return root
 }
