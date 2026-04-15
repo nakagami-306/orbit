@@ -263,11 +263,185 @@ func (s *Server) handleGetDAG(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// --- Entity nodes: Threads, Tasks, Sections ---
+
+	type entityNode struct {
+		ID      string `json:"id"`
+		Title   string `json:"title"`
+		Type    string `json:"type"`
+		Status  string `json:"status"`
+		Instant string `json:"instant"`
+	}
+
+	// Threads
+	threadNodes := make([]entityNode, 0)
+	threadEntityToStable := make(map[int64]string)
+	threadRows, err := conn.Query(`
+		SELECT t.entity_id, t.stable_id, t.title, t.status, t.outcome_decision_id,
+		       COALESCE((SELECT tx2.instant FROM transactions tx2 WHERE tx2.id = e.created_tx), '') AS instant
+		FROM p_threads t
+		JOIN entities e ON t.entity_id = e.id
+		WHERE t.project_id = ?
+	`, projectID)
+	if err == nil {
+		defer threadRows.Close()
+		for threadRows.Next() {
+			var eid int64
+			var n entityNode
+			var outcomeDecID sql.NullInt64
+			threadRows.Scan(&eid, &n.ID, &n.Title, &n.Status, &outcomeDecID, &n.Instant)
+			n.Type = "thread"
+			threadNodes = append(threadNodes, n)
+			threadEntityToStable[eid] = n.ID
+		}
+	}
+
+	// Tasks
+	taskNodes := make([]entityNode, 0)
+	taskRows2, err := conn.Query(`
+		SELECT t.entity_id, t.stable_id, t.title, t.status, COALESCE(t.priority,'medium'),
+		       COALESCE((SELECT tx2.instant FROM transactions tx2 WHERE tx2.id = e.created_tx), '') AS instant
+		FROM p_tasks t
+		JOIN entities e ON t.entity_id = e.id
+		WHERE t.project_id = ?
+	`, projectID)
+	if err == nil {
+		defer taskRows2.Close()
+		for taskRows2.Next() {
+			var eid int64
+			var n entityNode
+			var priority string
+			taskRows2.Scan(&eid, &n.ID, &n.Title, &n.Status, &priority, &n.Instant)
+			n.Type = "task"
+			// Encode priority into status for display: "todo (high)"
+			if priority != "" && priority != "medium" {
+				n.Status = n.Status + " (" + priority + ")"
+			}
+			taskNodes = append(taskNodes, n)
+		}
+	}
+
+	// Sections
+	sectionNodes := make([]entityNode, 0)
+	sectionEntityToStable := make(map[int64]string)
+	sectionRows, err := conn.Query(`
+		SELECT s.entity_id, s.stable_id, s.title, s.is_stale,
+		       COALESCE((SELECT tx2.instant FROM transactions tx2 WHERE tx2.id = e.created_tx), '') AS instant
+		FROM p_sections s
+		JOIN entities e ON s.entity_id = e.id
+		WHERE s.project_id = ? AND s.branch_id = ?
+	`, projectID, branchID)
+	if err == nil {
+		defer sectionRows.Close()
+		for sectionRows.Next() {
+			var eid int64
+			var n entityNode
+			var isStale int
+			sectionRows.Scan(&eid, &n.ID, &n.Title, &isStale, &n.Instant)
+			n.Type = "section"
+			if isStale == 1 {
+				n.Status = "stale"
+			} else {
+				n.Status = "current"
+			}
+			sectionNodes = append(sectionNodes, n)
+			sectionEntityToStable[eid] = n.ID
+		}
+	}
+
+	// --- Entity edges ---
+	entityEdges := make([]dagEdge, 0)
+
+	// Decision -> Section: find section entities modified by each decision's transaction
+	for _, decNode := range nodes {
+		var txID int64
+		err := conn.QueryRow(
+			"SELECT tx_id FROM p_decisions WHERE stable_id = ? AND branch_id = ?",
+			decNode.ID, branchID,
+		).Scan(&txID)
+		if err != nil {
+			continue
+		}
+		// Find section entities touched by this tx
+		secEdgeRows, err := conn.Query(`
+			SELECT DISTINCT e.stable_id
+			FROM datoms d
+			JOIN entities e ON d.e = e.id
+			WHERE d.tx = ? AND e.entity_type = 'section'
+		`, txID)
+		if err == nil {
+			for secEdgeRows.Next() {
+				var secStableID string
+				secEdgeRows.Scan(&secStableID)
+				entityEdges = append(entityEdges, dagEdge{Source: decNode.ID, Target: secStableID})
+			}
+			secEdgeRows.Close()
+		}
+	}
+
+	// Thread -> Decision: outcome_decision_id
+	threadOutcomeRows, err := conn.Query(`
+		SELECT t.stable_id, t.outcome_decision_id
+		FROM p_threads t
+		WHERE t.project_id = ? AND t.outcome_decision_id IS NOT NULL
+	`, projectID)
+	if err == nil {
+		defer threadOutcomeRows.Close()
+		for threadOutcomeRows.Next() {
+			var threadStableID string
+			var outcomeDecEntityID int64
+			threadOutcomeRows.Scan(&threadStableID, &outcomeDecEntityID)
+			if decStableID, ok := entityToStable[outcomeDecEntityID]; ok {
+				entityEdges = append(entityEdges, dagEdge{Source: threadStableID, Target: decStableID})
+			}
+		}
+	}
+
+	// Decision -> Task: tasks with source_type='decision'
+	decTaskRows, err := conn.Query(`
+		SELECT t.stable_id, t.source_id
+		FROM p_tasks t
+		WHERE t.project_id = ? AND t.source_type = 'decision' AND t.source_id IS NOT NULL
+	`, projectID)
+	if err == nil {
+		defer decTaskRows.Close()
+		for decTaskRows.Next() {
+			var taskStableID string
+			var sourceEntityID int64
+			decTaskRows.Scan(&taskStableID, &sourceEntityID)
+			if decStableID, ok := entityToStable[sourceEntityID]; ok {
+				entityEdges = append(entityEdges, dagEdge{Source: decStableID, Target: taskStableID})
+			}
+		}
+	}
+
+	// Thread -> Task: tasks with source_type='thread'
+	threadTaskRows, err := conn.Query(`
+		SELECT t.stable_id, t.source_id
+		FROM p_tasks t
+		WHERE t.project_id = ? AND t.source_type = 'thread' AND t.source_id IS NOT NULL
+	`, projectID)
+	if err == nil {
+		defer threadTaskRows.Close()
+		for threadTaskRows.Next() {
+			var taskStableID string
+			var sourceEntityID int64
+			threadTaskRows.Scan(&taskStableID, &sourceEntityID)
+			if threadStableID, ok := threadEntityToStable[sourceEntityID]; ok {
+				entityEdges = append(entityEdges, dagEdge{Source: threadStableID, Target: taskStableID})
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"nodes":      nodes,
-		"edges":      edges,
-		"branches":   branchList,
-		"milestones": milestones,
+		"nodes":       nodes,
+		"edges":       edges,
+		"branches":    branchList,
+		"milestones":  milestones,
+		"threads":     threadNodes,
+		"tasks":       taskNodes,
+		"sections":    sectionNodes,
+		"entityEdges": entityEdges,
 	})
 }
 

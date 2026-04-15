@@ -1,4 +1,4 @@
-<!-- orbit:generated | 2026-04-15T15:15:02Z | branch:main | head:none -->
+<!-- orbit:generated | 2026-04-15T16:44:59Z | branch:main | head:019d9208-2083-74df-8c23-0fe2906f5c98 -->
 # orbit
 
 > あらゆる種類のプロジェクトの設計状態・意思決定・進行をバージョン管理するCLIツール。人間とAIの両方が同じインターフェースで操作できる。
@@ -232,18 +232,4 @@ SQLiteスキーマは3層構成:
 Section間のstale検出: Decision適用時にp_section_refsを参照し、変更されたSectionの参照元をstaleフラグ付きでUPDATE。
 
 ## AI連携
-
-CLI関数に対応するClaude Code skillsを設計予定。skillsはCLIコマンドに --format json と --content フラグを付けて呼び出す薄いラッパーではなく、ワークフロー単位で複数コマンドを組み合わせた設計。
-
-8つのskillsで34個のCLIコマンドを集約:
-1. /orbit-init — プロジェクト初期化
-2. /orbit-overview — 状況把握・健全性確認
-3. /orbit-evolve — State編集→Decision生成
-4. /orbit-discuss — Thread作成→議論→Decision収束
-5. /orbit-branch — 並行設計探索
-6. /orbit-history — 履歴調査・時間旅行
-7. /orbit-tasks — タスク管理
-8. /orbit-milestone — マイルストーン管理
-
-設計原則: ワークフロー指向、コンテキスト先行、冪等性意識、人間の確認ポイント、共通フラグの自動付与。
 

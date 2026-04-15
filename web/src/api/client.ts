@@ -69,11 +69,23 @@ export interface MilestoneInfo {
   decisionId: string
 }
 
+export interface EntityNode {
+  id: string
+  title: string
+  type: 'thread' | 'task' | 'section'
+  status: string
+  instant: string
+}
+
 export interface DAGResponse {
   nodes: DAGNode[]
   edges: DAGEdge[]
   branches: BranchInfo[]
   milestones: MilestoneInfo[]
+  threads: EntityNode[]
+  tasks: EntityNode[]
+  sections: EntityNode[]
+  entityEdges: DAGEdge[]
 }
 
 export interface DecisionDetail {
