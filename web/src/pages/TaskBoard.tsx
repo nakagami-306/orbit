@@ -2,23 +2,24 @@ import { useEffect, useState } from 'react'
 import { fetchJSON, patchJSON, type Task } from '../api/client'
 
 const columns = [
-  { key: 'todo', label: 'Todo' },
-  { key: 'in-progress', label: 'In Progress' },
-  { key: 'done', label: 'Done' },
+  { key: 'todo', label: 'Todo', color: '#888' },
+  { key: 'in-progress', label: 'In Progress', color: '#fa4' },
+  { key: 'done', label: 'Done', color: '#4c4' },
 ] as const
 
-const priorityColor: Record<string, string> = {
-  h: '#f44',
-  m: '#fa4',
-  l: '#4a4',
-  high: '#f44',
-  medium: '#fa4',
-  low: '#4a4',
+const priorityLabel: Record<string, { text: string; color: string }> = {
+  h: { text: 'HIGH', color: '#f44' },
+  m: { text: 'MED', color: '#fa4' },
+  l: { text: 'LOW', color: '#4a4' },
+  high: { text: 'HIGH', color: '#f44' },
+  medium: { text: 'MED', color: '#fa4' },
+  low: { text: 'LOW', color: '#4a4' },
 }
 
 export default function TaskBoard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [error, setError] = useState('')
+  const [hideCancelled, setHideCancelled] = useState(true)
 
   const loadTasks = () => {
     fetchJSON<Task[]>('/api/tasks')
@@ -29,70 +30,113 @@ export default function TaskBoard() {
   useEffect(() => { loadTasks() }, [])
 
   const moveTask = async (taskId: string, newStatus: string) => {
+    // Optimistic update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
     try {
       await patchJSON(`/api/tasks/${taskId}`, { status: newStatus })
-      loadTasks()
     } catch (e: any) {
       setError(e.message)
+      loadTasks() // revert on failure
     }
   }
 
-  if (error) return <div style={{ padding: '2rem', color: '#f66' }}>Error: {error}</div>
+  const filteredTasks = hideCancelled ? tasks.filter(t => t.status !== 'cancelled') : tasks
 
   return (
     <div style={{ padding: '2rem' }}>
-      <h1 style={{ marginBottom: '1.5rem' }}>Task Board</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h1 style={{ margin: 0 }}>Task Board</h1>
+        <label style={{ fontSize: '0.8rem', color: '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <input
+            type="checkbox"
+            checked={hideCancelled}
+            onChange={e => setHideCancelled(e.target.checked)}
+          />
+          Hide cancelled
+        </label>
+      </div>
+
+      {error && <div style={{ color: '#f66', marginBottom: '1rem' }}>Error: {error}</div>}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', minHeight: '60vh' }}>
         {columns.map(col => {
-          const colTasks = tasks.filter(t => t.status === col.key)
+          const colTasks = filteredTasks.filter(t => t.status === col.key)
           return (
             <div key={col.key} style={{
-              background: '#222',
+              background: '#1e1e1e',
               borderRadius: '8px',
               padding: '1rem',
               border: '1px solid #333',
             }}>
-              <h3 style={{ margin: '0 0 1rem', color: '#aaa', fontSize: '0.9rem' }}>
-                {col.label} ({colTasks.length})
+              <h3 style={{
+                margin: '0 0 1rem',
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}>
+                <span style={{
+                  width: '8px', height: '8px', borderRadius: '50%',
+                  background: col.color, display: 'inline-block',
+                }} />
+                {col.label}
+                <span style={{ color: '#555', fontWeight: 400 }}>({colTasks.length})</span>
               </h3>
-              {colTasks.map(task => (
-                <div key={task.id} style={{
-                  background: '#2a2a2a',
-                  borderRadius: '6px',
-                  padding: '0.75rem',
-                  marginBottom: '0.5rem',
-                  border: '1px solid #333',
-                }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 500, marginBottom: '4px' }}>
-                    {task.title}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', gap: '0.5rem', marginBottom: '6px' }}>
-                    <span style={{ color: priorityColor[task.priority] || '#888' }}>
-                      {task.priority}
-                    </span>
-                    <span>{task.projectName}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    {columns.filter(c => c.key !== col.key).map(c => (
-                      <button
-                        key={c.key}
-                        onClick={() => moveTask(task.id, c.key)}
-                        style={{
-                          fontSize: '0.65rem',
-                          padding: '2px 6px',
-                          background: '#333',
-                          color: '#aaa',
-                          border: '1px solid #444',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        → {c.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {colTasks.map(task => {
+                  const prio = priorityLabel[task.priority]
+                  return (
+                    <div key={task.id} style={{
+                      background: '#2a2a2a',
+                      borderRadius: '6px',
+                      padding: '0.75rem',
+                      border: '1px solid #333',
+                    }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 500, marginBottom: '6px', lineHeight: 1.3 }}>
+                        {task.title}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', gap: '0.5rem', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        {prio && (
+                          <span style={{
+                            color: prio.color,
+                            background: `${prio.color}15`,
+                            padding: '0 4px',
+                            borderRadius: '2px',
+                            fontSize: '0.6rem',
+                            fontWeight: 600,
+                          }}>
+                            {prio.text}
+                          </span>
+                        )}
+                        <span style={{ color: '#4a9eff' }}>{task.projectName}</span>
+                        {task.assignee && <span>@{task.assignee}</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {columns.filter(c => c.key !== col.key).map(c => (
+                          <button
+                            key={c.key}
+                            onClick={() => moveTask(task.id, c.key)}
+                            style={{
+                              fontSize: '0.65rem',
+                              padding: '3px 8px',
+                              background: '#333',
+                              color: '#aaa',
+                              border: '1px solid #444',
+                              borderRadius: '3px',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#444' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#333' }}
+                          >
+                            → {c.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )
         })}
