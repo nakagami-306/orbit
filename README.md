@@ -1,6 +1,10 @@
-# Orbit
+<p align="center">
+  <img src="orbit-title.png" alt="Orbit" width="600">
+</p>
 
-**プロジェクトの「今の設計」と「なぜそうなったか」を管理するCLIツール。**
+<p align="center">
+  <strong>プロジェクトの「今の設計」と「なぜそうなったか」を管理するCLIツール。</strong>
+</p>
 
 ---
 

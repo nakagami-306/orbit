@@ -32,6 +32,17 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+release:
+  header: |
+    <p align="center">
+      <img src="https://raw.githubusercontent.com/nakagami-306/orbit/main/orbit-title.png" alt="Orbit" width="500">
+    </p>
+
+    ---
+  footer: |
+    ---
+    **Full Changelog**: https://github.com/{{ .Env.GITHUB_REPOSITORY }}/compare/{{ .PreviousTag }}...{{ .Tag }}
+
 changelog:
   sort: asc
   filters:
