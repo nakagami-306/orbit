@@ -378,3 +378,379 @@ func (s *ProjectService) AddSection(ctx context.Context, projectEntityID, branch
 	})
 	return
 }
+
+// SectionRef represents a reference link between sections.
+type SectionRef struct {
+	FromSectionID int64
+	ToSectionID   int64
+	BranchID      int64
+}
+
+// SectionDetail holds a section with its references and stale state.
+type SectionDetail struct {
+	Section
+	RefsTo   []Section // sections this one references
+	RefsFrom []Section // sections that reference this one
+}
+
+// AddSectionRef adds a reference link between two sections, creating a Decision.
+func (s *ProjectService) AddSectionRef(ctx context.Context, fromSectionID, toSectionID, branchID, projectEntityID int64, author string) (decisionStableID string, err error) {
+	decisionStableID = eavt.NewStableID()
+
+	err = s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
+		// Get current head decision
+		var currentHead *int64
+		var headID int64
+		headErr := sqlTx.QueryRow(
+			"SELECT head_decision_id FROM p_branches WHERE entity_id = ?", branchID,
+		).Scan(&headID)
+		if headErr == nil && headID > 0 {
+			currentHead = &headID
+		}
+
+		// Create decision entity
+		decisionEntityID, err := eavt.CreateEntity(sqlTx, decisionStableID, eavt.EntityDecision, 0)
+		if err != nil {
+			return err
+		}
+
+		// Create EAVT transaction
+		txID, err := eavt.BeginTx(sqlTx, &decisionEntityID, branchID, author)
+		if err != nil {
+			return err
+		}
+
+		// Assert ref datom on the from_section
+		if err := eavt.AssertDatom(sqlTx, fromSectionID, eavt.AttrSectionRef, eavt.NewRef(toSectionID), txID); err != nil {
+			return err
+		}
+
+		// Get section titles for decision metadata
+		var fromTitle, toTitle string
+		sqlTx.QueryRow("SELECT title FROM p_sections WHERE entity_id = ? AND branch_id = ?", fromSectionID, branchID).Scan(&fromTitle)
+		sqlTx.QueryRow("SELECT title FROM p_sections WHERE entity_id = ? AND branch_id = ?", toSectionID, branchID).Scan(&toTitle)
+
+		// Assert decision datoms
+		decTitle := fmt.Sprintf("Add reference: %s → %s", fromTitle, toTitle)
+		decRationale := fmt.Sprintf("Added reference link from %q to %q", fromTitle, toTitle)
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionTitle, eavt.NewString(decTitle), txID); err != nil {
+			return err
+		}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionRationale, eavt.NewString(decRationale), txID); err != nil {
+			return err
+		}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionAuthor, eavt.NewString(author), txID); err != nil {
+			return err
+		}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionProjectID, eavt.NewRef(projectEntityID), txID); err != nil {
+			return err
+		}
+		if currentHead != nil {
+			if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{*currentHead}), txID); err != nil {
+				return err
+			}
+		}
+
+		// Update branch head
+		if currentHead != nil {
+			eavt.RetractDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(*currentHead), txID)
+		}
+		if err := eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(decisionEntityID), txID); err != nil {
+			return err
+		}
+
+		// Apply projections
+		if err := s.Projector.ApplySectionRef(sqlTx, fromSectionID, toSectionID, branchID); err != nil {
+			return err
+		}
+		if err := s.Projector.ApplyDatoms(sqlTx, decisionEntityID, eavt.EntityDecision, branchID); err != nil {
+			return err
+		}
+		if err := s.Projector.ApplyDatoms(sqlTx, branchID, eavt.EntityBranch, branchID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	return
+}
+
+// RemoveSectionRef removes a reference link between two sections, creating a Decision.
+func (s *ProjectService) RemoveSectionRef(ctx context.Context, fromSectionID, toSectionID, branchID, projectEntityID int64, author string) (decisionStableID string, err error) {
+	decisionStableID = eavt.NewStableID()
+
+	err = s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
+		// Get current head decision
+		var currentHead *int64
+		var headID int64
+		headErr := sqlTx.QueryRow(
+			"SELECT head_decision_id FROM p_branches WHERE entity_id = ?", branchID,
+		).Scan(&headID)
+		if headErr == nil && headID > 0 {
+			currentHead = &headID
+		}
+
+		// Create decision entity
+		decisionEntityID, err := eavt.CreateEntity(sqlTx, decisionStableID, eavt.EntityDecision, 0)
+		if err != nil {
+			return err
+		}
+
+		// Create EAVT transaction
+		txID, err := eavt.BeginTx(sqlTx, &decisionEntityID, branchID, author)
+		if err != nil {
+			return err
+		}
+
+		// Retract ref datom
+		if err := eavt.RetractDatom(sqlTx, fromSectionID, eavt.AttrSectionRef, eavt.NewRef(toSectionID), txID); err != nil {
+			return err
+		}
+
+		// Get section titles for decision metadata
+		var fromTitle, toTitle string
+		sqlTx.QueryRow("SELECT title FROM p_sections WHERE entity_id = ? AND branch_id = ?", fromSectionID, branchID).Scan(&fromTitle)
+		sqlTx.QueryRow("SELECT title FROM p_sections WHERE entity_id = ? AND branch_id = ?", toSectionID, branchID).Scan(&toTitle)
+
+		// Assert decision datoms
+		decTitle := fmt.Sprintf("Remove reference: %s → %s", fromTitle, toTitle)
+		decRationale := fmt.Sprintf("Removed reference link from %q to %q", fromTitle, toTitle)
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionTitle, eavt.NewString(decTitle), txID); err != nil {
+			return err
+		}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionRationale, eavt.NewString(decRationale), txID); err != nil {
+			return err
+		}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionAuthor, eavt.NewString(author), txID); err != nil {
+			return err
+		}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionProjectID, eavt.NewRef(projectEntityID), txID); err != nil {
+			return err
+		}
+		if currentHead != nil {
+			if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{*currentHead}), txID); err != nil {
+				return err
+			}
+		}
+
+		// Update branch head
+		if currentHead != nil {
+			eavt.RetractDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(*currentHead), txID)
+		}
+		if err := eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(decisionEntityID), txID); err != nil {
+			return err
+		}
+
+		// Remove from projection
+		if err := s.Projector.RemoveSectionRef(sqlTx, fromSectionID, toSectionID, branchID); err != nil {
+			return err
+		}
+		if err := s.Projector.ApplyDatoms(sqlTx, decisionEntityID, eavt.EntityDecision, branchID); err != nil {
+			return err
+		}
+		if err := s.Projector.ApplyDatoms(sqlTx, branchID, eavt.EntityBranch, branchID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	return
+}
+
+// RemoveSection removes a section by retracting all its attributes, creating a Decision.
+// Warns (via returned warnings) if the section is referenced by other sections.
+func (s *ProjectService) RemoveSection(ctx context.Context, sectionEntityID, branchID, projectEntityID int64, rationale, author string) (decisionStableID string, warnings []string, err error) {
+	decisionStableID = eavt.NewStableID()
+
+	err = s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
+		// Check for dangling refs (sections referencing this one)
+		rows, queryErr := sqlTx.Query(`
+			SELECT ps.title FROM p_section_refs r
+			JOIN p_sections ps ON r.from_section = ps.entity_id AND ps.branch_id = r.branch_id
+			WHERE r.to_section = ? AND r.branch_id = ?
+		`, sectionEntityID, branchID)
+		if queryErr == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var refTitle string
+				rows.Scan(&refTitle)
+				warnings = append(warnings, fmt.Sprintf("Section %q references this section (dangling ref)", refTitle))
+			}
+		}
+
+		// Get current head decision
+		var currentHead *int64
+		var headID int64
+		headErr := sqlTx.QueryRow(
+			"SELECT head_decision_id FROM p_branches WHERE entity_id = ?", branchID,
+		).Scan(&headID)
+		if headErr == nil && headID > 0 {
+			currentHead = &headID
+		}
+
+		// Create decision entity
+		decisionEntityID, err := eavt.CreateEntity(sqlTx, decisionStableID, eavt.EntityDecision, 0)
+		if err != nil {
+			return err
+		}
+
+		// Create EAVT transaction
+		txID, err := eavt.BeginTx(sqlTx, &decisionEntityID, branchID, author)
+		if err != nil {
+			return err
+		}
+
+		// Get current state of the section to retract all attributes
+		state, err := eavt.EntityState(sqlTx, sectionEntityID)
+		if err != nil {
+			return err
+		}
+
+		// Get section title for decision metadata
+		sectionTitle := ""
+		if titleVal, ok := state[eavt.AttrSectionTitle]; ok {
+			sectionTitle, _ = titleVal.AsString()
+		}
+
+		// Retract all section attributes
+		for attr, val := range state {
+			if err := eavt.RetractDatom(sqlTx, sectionEntityID, attr, val, txID); err != nil {
+				return err
+			}
+		}
+
+		// Assert decision datoms
+		decTitle := fmt.Sprintf("Remove section: %s", sectionTitle)
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionTitle, eavt.NewString(decTitle), txID); err != nil {
+			return err
+		}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionRationale, eavt.NewString(rationale), txID); err != nil {
+			return err
+		}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionAuthor, eavt.NewString(author), txID); err != nil {
+			return err
+		}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionProjectID, eavt.NewRef(projectEntityID), txID); err != nil {
+			return err
+		}
+		if currentHead != nil {
+			if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{*currentHead}), txID); err != nil {
+				return err
+			}
+		}
+
+		// Update branch head
+		if currentHead != nil {
+			eavt.RetractDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(*currentHead), txID)
+		}
+		if err := eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(decisionEntityID), txID); err != nil {
+			return err
+		}
+
+		// Delete section from projection
+		sqlTx.Exec("DELETE FROM p_sections WHERE entity_id = ? AND branch_id = ?", sectionEntityID, branchID)
+
+		// Clean up any refs involving this section
+		sqlTx.Exec("DELETE FROM p_section_refs WHERE (from_section = ? OR to_section = ?) AND branch_id = ?",
+			sectionEntityID, sectionEntityID, branchID)
+
+		// Apply decision and branch projections
+		if err := s.Projector.ApplyDatoms(sqlTx, decisionEntityID, eavt.EntityDecision, branchID); err != nil {
+			return err
+		}
+		if err := s.Projector.ApplyDatoms(sqlTx, branchID, eavt.EntityBranch, branchID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	return
+}
+
+// GetSection returns detailed information about a single section, including refs.
+func (s *ProjectService) GetSection(ctx context.Context, sectionEntityID, branchID int64) (*SectionDetail, error) {
+	var detail SectionDetail
+	var isStale int
+
+	err := s.DB.Conn().QueryRowContext(ctx, `
+		SELECT entity_id, stable_id, project_id, title, COALESCE(content,''), position, is_stale, COALESCE(stale_reason,'')
+		FROM p_sections
+		WHERE entity_id = ? AND branch_id = ?
+	`, sectionEntityID, branchID).Scan(
+		&detail.EntityID, &detail.StableID, &detail.ProjectID,
+		&detail.Title, &detail.Content, &detail.Position,
+		&isStale, &detail.StaleReason,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("section not found: %w", err)
+	}
+	detail.IsStale = isStale == 1
+
+	// Get references TO (sections this one references)
+	refsToRows, err := s.DB.Conn().QueryContext(ctx, `
+		SELECT ps.entity_id, ps.stable_id, ps.project_id, ps.title, COALESCE(ps.content,''), ps.position, ps.is_stale, COALESCE(ps.stale_reason,'')
+		FROM p_section_refs r
+		JOIN p_sections ps ON r.to_section = ps.entity_id AND ps.branch_id = r.branch_id
+		WHERE r.from_section = ? AND r.branch_id = ?
+		ORDER BY ps.position
+	`, sectionEntityID, branchID)
+	if err != nil {
+		return nil, err
+	}
+	defer refsToRows.Close()
+	for refsToRows.Next() {
+		var sec Section
+		var stale int
+		if err := refsToRows.Scan(&sec.EntityID, &sec.StableID, &sec.ProjectID, &sec.Title, &sec.Content, &sec.Position, &stale, &sec.StaleReason); err != nil {
+			return nil, err
+		}
+		sec.IsStale = stale == 1
+		detail.RefsTo = append(detail.RefsTo, sec)
+	}
+
+	// Get references FROM (sections that reference this one)
+	refsFromRows, err := s.DB.Conn().QueryContext(ctx, `
+		SELECT ps.entity_id, ps.stable_id, ps.project_id, ps.title, COALESCE(ps.content,''), ps.position, ps.is_stale, COALESCE(ps.stale_reason,'')
+		FROM p_section_refs r
+		JOIN p_sections ps ON r.from_section = ps.entity_id AND ps.branch_id = r.branch_id
+		WHERE r.to_section = ? AND r.branch_id = ?
+		ORDER BY ps.position
+	`, sectionEntityID, branchID)
+	if err != nil {
+		return nil, err
+	}
+	defer refsFromRows.Close()
+	for refsFromRows.Next() {
+		var sec Section
+		var stale int
+		if err := refsFromRows.Scan(&sec.EntityID, &sec.StableID, &sec.ProjectID, &sec.Title, &sec.Content, &sec.Position, &stale, &sec.StaleReason); err != nil {
+			return nil, err
+		}
+		sec.IsStale = stale == 1
+		detail.RefsFrom = append(detail.RefsFrom, sec)
+	}
+
+	return &detail, nil
+}
+
+// FindSectionByNameOrID finds a section by title, stable_id prefix, or entity_id string.
+func (s *ProjectService) FindSectionByNameOrID(ctx context.Context, identifier string, projectEntityID, branchID int64) (*Section, error) {
+	var sec Section
+	var isStale int
+	err := s.DB.Conn().QueryRowContext(ctx, `
+		SELECT entity_id, stable_id, project_id, title, COALESCE(content,''), position, is_stale, COALESCE(stale_reason,'')
+		FROM p_sections
+		WHERE project_id = ? AND branch_id = ?
+		  AND (title = ? OR stable_id = ? OR stable_id LIKE ? OR CAST(entity_id AS TEXT) = ?)
+		LIMIT 1
+	`, projectEntityID, branchID, identifier, identifier, identifier+"%", identifier).Scan(
+		&sec.EntityID, &sec.StableID, &sec.ProjectID,
+		&sec.Title, &sec.Content, &sec.Position,
+		&isStale, &sec.StaleReason,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("section %q not found: %w", identifier, err)
+	}
+	sec.IsStale = isStale == 1
+	return &sec, nil
+}

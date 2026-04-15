@@ -254,6 +254,24 @@ func (p *Projector) applyMilestone(sqlTx *sql.Tx, entityID int64, stableID strin
 	return err
 }
 
+// ApplySectionRef inserts a row into p_section_refs.
+func (p *Projector) ApplySectionRef(sqlTx *sql.Tx, fromSection, toSection, branchID int64) error {
+	_, err := sqlTx.Exec(`
+		INSERT OR IGNORE INTO p_section_refs (from_section, to_section, branch_id)
+		VALUES (?, ?, ?)
+	`, fromSection, toSection, branchID)
+	return err
+}
+
+// RemoveSectionRef deletes a row from p_section_refs.
+func (p *Projector) RemoveSectionRef(sqlTx *sql.Tx, fromSection, toSection, branchID int64) error {
+	_, err := sqlTx.Exec(`
+		DELETE FROM p_section_refs
+		WHERE from_section = ? AND to_section = ? AND branch_id = ?
+	`, fromSection, toSection, branchID)
+	return err
+}
+
 // Helper functions to extract typed values from state maps
 
 func valStr(state map[string]eavt.Value, attr string) string {

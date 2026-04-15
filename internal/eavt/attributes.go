@@ -16,6 +16,7 @@ const (
 	AttrSectionContent   = "section/content"
 	AttrSectionPosition  = "section/position"
 	AttrSectionProjectID = "section/project_id"
+	AttrSectionRef       = "section/ref" // Reference link: value is Ref to target section
 )
 
 // Decision attributes

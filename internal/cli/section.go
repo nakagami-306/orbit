@@ -17,6 +17,9 @@ func newSectionCmd(app *App) *cobra.Command {
 
 	cmd.AddCommand(newSectionAddCmd(app))
 	cmd.AddCommand(newSectionLogCmd(app))
+	cmd.AddCommand(newSectionRefCmd(app))
+	cmd.AddCommand(newSectionRemoveCmd(app))
+	cmd.AddCommand(newSectionShowCmd(app))
 	return cmd
 }
 
@@ -88,4 +91,256 @@ func newSectionAddCmd(app *App) *cobra.Command {
 	cmd.Flags().IntVar(&position, "position", 0, "Section position")
 
 	return cmd
+}
+
+func newSectionRefCmd(app *App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "ref",
+		Short: "Manage section references",
+	}
+
+	cmd.AddCommand(newSectionRefAddCmd(app))
+	cmd.AddCommand(newSectionRefRemoveCmd(app))
+	return cmd
+}
+
+func newSectionRefAddCmd(app *App) *cobra.Command {
+	return &cobra.Command{
+		Use:   "add <from-section> <to-section>",
+		Short: "Add a reference from one section to another",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			info, err := app.resolveProject()
+			if err != nil {
+				return err
+			}
+
+			fromSec, err := app.Service.FindSectionByNameOrID(cmd.Context(), args[0], info.ProjectEntityID, info.BranchID)
+			if err != nil {
+				return fmt.Errorf("from-section: %w", err)
+			}
+			toSec, err := app.Service.FindSectionByNameOrID(cmd.Context(), args[1], info.ProjectEntityID, info.BranchID)
+			if err != nil {
+				return fmt.Errorf("to-section: %w", err)
+			}
+
+			decSID, err := app.Service.AddSectionRef(
+				cmd.Context(), fromSec.EntityID, toSec.EntityID,
+				info.BranchID, info.ProjectEntityID, "user",
+			)
+			if err != nil {
+				return err
+			}
+
+			// Re-render
+			if info.Path != "" {
+				workspace.RenderState(app.DB.Conn(), info.ProjectEntityID, info.BranchID, info.Path)
+			}
+
+			if app.Format == "json" {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
+					"action":       "ref_added",
+					"from_section": fromSec.Title,
+					"to_section":   toSec.Title,
+					"decision_id":  decSID[:8],
+				})
+			}
+			fmt.Printf("Added reference: %s → %s — Decision %s\n", fromSec.Title, toSec.Title, decSID[:8])
+			return nil
+		},
+	}
+}
+
+func newSectionRefRemoveCmd(app *App) *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove <from-section> <to-section>",
+		Short: "Remove a reference from one section to another",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			info, err := app.resolveProject()
+			if err != nil {
+				return err
+			}
+
+			fromSec, err := app.Service.FindSectionByNameOrID(cmd.Context(), args[0], info.ProjectEntityID, info.BranchID)
+			if err != nil {
+				return fmt.Errorf("from-section: %w", err)
+			}
+			toSec, err := app.Service.FindSectionByNameOrID(cmd.Context(), args[1], info.ProjectEntityID, info.BranchID)
+			if err != nil {
+				return fmt.Errorf("to-section: %w", err)
+			}
+
+			decSID, err := app.Service.RemoveSectionRef(
+				cmd.Context(), fromSec.EntityID, toSec.EntityID,
+				info.BranchID, info.ProjectEntityID, "user",
+			)
+			if err != nil {
+				return err
+			}
+
+			// Re-render
+			if info.Path != "" {
+				workspace.RenderState(app.DB.Conn(), info.ProjectEntityID, info.BranchID, info.Path)
+			}
+
+			if app.Format == "json" {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
+					"action":       "ref_removed",
+					"from_section": fromSec.Title,
+					"to_section":   toSec.Title,
+					"decision_id":  decSID[:8],
+				})
+			}
+			fmt.Printf("Removed reference: %s → %s — Decision %s\n", fromSec.Title, toSec.Title, decSID[:8])
+			return nil
+		},
+	}
+}
+
+func newSectionRemoveCmd(app *App) *cobra.Command {
+	var rationale string
+
+	cmd := &cobra.Command{
+		Use:   "remove <section>",
+		Short: "Remove a section",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if rationale == "" {
+				return fmt.Errorf("-r (rationale) is required")
+			}
+
+			info, err := app.resolveProject()
+			if err != nil {
+				return err
+			}
+
+			sec, err := app.Service.FindSectionByNameOrID(cmd.Context(), args[0], info.ProjectEntityID, info.BranchID)
+			if err != nil {
+				return err
+			}
+
+			decSID, warnings, err := app.Service.RemoveSection(
+				cmd.Context(), sec.EntityID, info.BranchID, info.ProjectEntityID,
+				rationale, "user",
+			)
+			if err != nil {
+				return err
+			}
+
+			// Re-render
+			if info.Path != "" {
+				workspace.RenderState(app.DB.Conn(), info.ProjectEntityID, info.BranchID, info.Path)
+			}
+
+			if app.Format == "json" {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
+					"action":      "removed",
+					"section":     sec.Title,
+					"decision_id": decSID[:8],
+					"warnings":    warnings,
+				})
+			}
+
+			for _, w := range warnings {
+				fmt.Fprintf(os.Stderr, "warning: %s\n", w)
+			}
+			fmt.Printf("Removed section %q — Decision %s\n", sec.Title, decSID[:8])
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&rationale, "rationale", "r", "", "Rationale for removal (required)")
+
+	return cmd
+}
+
+func newSectionShowCmd(app *App) *cobra.Command {
+	return &cobra.Command{
+		Use:   "show <section>",
+		Short: "Show section details",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			info, err := app.resolveProject()
+			if err != nil {
+				return err
+			}
+
+			sec, err := app.Service.FindSectionByNameOrID(cmd.Context(), args[0], info.ProjectEntityID, info.BranchID)
+			if err != nil {
+				return err
+			}
+
+			detail, err := app.Service.GetSection(cmd.Context(), sec.EntityID, info.BranchID)
+			if err != nil {
+				return err
+			}
+
+			if app.Format == "json" {
+				data := map[string]any{
+					"stable_id":    detail.StableID,
+					"title":        detail.Title,
+					"content":      detail.Content,
+					"position":     detail.Position,
+					"is_stale":     detail.IsStale,
+					"stale_reason": detail.StaleReason,
+				}
+				refsTo := []map[string]any{}
+				for _, r := range detail.RefsTo {
+					refsTo = append(refsTo, map[string]any{
+						"stable_id": r.StableID,
+						"title":     r.Title,
+					})
+				}
+				refsFrom := []map[string]any{}
+				for _, r := range detail.RefsFrom {
+					refsFrom = append(refsFrom, map[string]any{
+						"stable_id": r.StableID,
+						"title":     r.Title,
+					})
+				}
+				data["refs_to"] = refsTo
+				data["refs_from"] = refsFrom
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(data)
+			}
+
+			// Text output
+			fmt.Printf("## %s", detail.Title)
+			if detail.IsStale {
+				fmt.Print(" [stale]")
+			}
+			fmt.Println()
+			fmt.Printf("ID: %s\n", detail.StableID[:8])
+			fmt.Println()
+
+			if detail.Content != "" {
+				fmt.Println(detail.Content)
+				fmt.Println()
+			}
+
+			if len(detail.RefsTo) > 0 {
+				fmt.Println("References →")
+				for _, r := range detail.RefsTo {
+					fmt.Printf("  • %s (%s)\n", r.Title, r.StableID[:8])
+				}
+				fmt.Println()
+			}
+
+			if len(detail.RefsFrom) > 0 {
+				fmt.Println("Referenced by ←")
+				for _, r := range detail.RefsFrom {
+					fmt.Printf("  • %s (%s)\n", r.Title, r.StableID[:8])
+				}
+				fmt.Println()
+			}
+
+			if detail.IsStale && detail.StaleReason != "" {
+				fmt.Printf("Stale reason: %s\n", detail.StaleReason)
+			}
+
+			return nil
+		},
+	}
 }
