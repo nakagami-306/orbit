@@ -3,6 +3,7 @@ package eavt
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -27,7 +28,10 @@ type Value struct {
 
 // Constructors
 
-func NewString(s string) Value   { return Value{Type: TypeString, Raw: s} }
+func NewString(s string) Value {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	return Value{Type: TypeString, Raw: s}
+}
 func NewInt(i int64) Value       { return Value{Type: TypeInt, Raw: i} }
 func NewBool(b bool) Value       { return Value{Type: TypeBool, Raw: b} }
 func NewRef(entityID int64) Value { return Value{Type: TypeRef, Raw: entityID} }

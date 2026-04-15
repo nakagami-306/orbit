@@ -3,7 +3,9 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/nakagami-306/orbit/internal/workspace"
 	"github.com/spf13/cobra"
@@ -140,6 +142,7 @@ func newConflictShowCmd(app *App) *cobra.Command {
 
 func newConflictResolveCmd(app *App) *cobra.Command {
 	var content, rationale string
+	var useStdin bool
 
 	cmd := &cobra.Command{
 		Use:   "resolve <conflict-id>",
@@ -147,6 +150,17 @@ func newConflictResolveCmd(app *App) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prefix := args[0]
+
+			if useStdin && content != "" {
+				return fmt.Errorf("--stdin and --content are mutually exclusive")
+			}
+			if useStdin {
+				data, err := io.ReadAll(os.Stdin)
+				if err != nil {
+					return fmt.Errorf("failed to read stdin: %w", err)
+				}
+				content = strings.TrimRight(string(data), "\n\r")
+			}
 
 			if content == "" {
 				return fmt.Errorf("--content is required")
@@ -200,5 +214,6 @@ func newConflictResolveCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&content, "content", "", "Resolution content (required)")
 	cmd.Flags().StringVarP(&rationale, "rationale", "r", "", "Resolution rationale (required)")
+	cmd.Flags().BoolVar(&useStdin, "stdin", false, "Read content from stdin")
 	return cmd
 }

@@ -3,7 +3,9 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/nakagami-306/orbit/internal/domain"
 	"github.com/nakagami-306/orbit/internal/projection"
@@ -166,12 +168,24 @@ func newThreadShowCmd(app *App) *cobra.Command {
 func newThreadAddCmd(app *App) *cobra.Command {
 	var entryType, content, stance string
 	var targetPrefix string
+	var useStdin bool
 
 	cmd := &cobra.Command{
 		Use:   "add <thread-id>",
 		Short: "Add an entry to a thread",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if useStdin && content != "" {
+				return fmt.Errorf("--stdin and --content are mutually exclusive")
+			}
+			if useStdin {
+				data, err := io.ReadAll(os.Stdin)
+				if err != nil {
+					return fmt.Errorf("failed to read stdin: %w", err)
+				}
+				content = strings.TrimRight(string(data), "\n\r")
+			}
+
 			threadPrefix := args[0]
 
 			if entryType == "" {
@@ -239,6 +253,7 @@ func newThreadAddCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&content, "content", "", "Entry content")
 	cmd.Flags().StringVar(&targetPrefix, "target", "", "Target entry ID (for argument)")
 	cmd.Flags().StringVar(&stance, "stance", "", "Stance: for/against/neutral (for argument)")
+	cmd.Flags().BoolVar(&useStdin, "stdin", false, "Read content from stdin")
 	return cmd
 }
 

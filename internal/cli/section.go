@@ -3,7 +3,9 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/nakagami-306/orbit/internal/workspace"
 	"github.com/spf13/cobra"
@@ -26,12 +28,24 @@ func newSectionCmd(app *App) *cobra.Command {
 func newSectionAddCmd(app *App) *cobra.Command {
 	var content, title, rationale string
 	var position int
+	var useStdin bool
 
 	cmd := &cobra.Command{
 		Use:   "add <title>",
 		Short: "Add a new section",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if useStdin && content != "" {
+				return fmt.Errorf("--stdin and --content are mutually exclusive")
+			}
+			if useStdin {
+				data, err := io.ReadAll(os.Stdin)
+				if err != nil {
+					return fmt.Errorf("failed to read stdin: %w", err)
+				}
+				content = strings.TrimRight(string(data), "\n\r")
+			}
+
 			sectionTitle := args[0]
 
 			info, err := app.resolveProject()
@@ -89,6 +103,7 @@ func newSectionAddCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVarP(&title, "title", "t", "", "Decision title")
 	cmd.Flags().StringVarP(&rationale, "rationale", "r", "", "Decision rationale")
 	cmd.Flags().IntVar(&position, "position", 0, "Section position")
+	cmd.Flags().BoolVar(&useStdin, "stdin", false, "Read content from stdin")
 
 	return cmd
 }

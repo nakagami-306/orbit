@@ -218,6 +218,34 @@ func TestEntitiesByAttribute(t *testing.T) {
 	}
 }
 
+func TestNewStringCRLFNormalization(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"crlf_to_lf", "line1\r\nline2\r\nline3", "line1\nline2\nline3"},
+		{"lf_unchanged", "line1\nline2\nline3", "line1\nline2\nline3"},
+		{"mixed_crlf_lf", "line1\r\nline2\nline3\r\n", "line1\nline2\nline3\n"},
+		{"no_newlines", "hello world", "hello world"},
+		{"empty", "", ""},
+		{"only_crlf", "\r\n", "\n"},
+		{"bare_cr_unchanged", "line1\rline2", "line1\rline2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := NewString(tt.input)
+			got, err := v.AsString()
+			if err != nil {
+				t.Fatalf("AsString: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("NewString(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDatomsForTx(t *testing.T) {
 	d := setupTestDB(t)
 	conn := d.Conn()
