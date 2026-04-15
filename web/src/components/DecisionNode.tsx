@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { formatTimeShort } from '../utils/time'
 
 interface DecisionNodeData {
   title: string
@@ -58,7 +59,7 @@ function DecisionNode({ data, selected }: NodeProps) {
 
       <div style={{ fontSize: '0.65rem', color: '#888', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
         <span>{d.author}</span>
-        <span>{d.instant?.slice(0, 10)}</span>
+        <span>{formatTimeShort(d.instant)}</span>
         {d.type === 'merge' && <span style={{ color: '#a855f7' }}>merge</span>}
         {d.sourceThreadId && <span style={{ color: '#4a9' }}>thread</span>}
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchJSON, type DecisionDetail } from '../api/client'
+import { formatTimeFull } from '../utils/time'
 
 interface Props {
   projectId: string
@@ -56,7 +57,7 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
           <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
             <span>{detail.author}</span>
             <span>·</span>
-            <span>{detail.instant?.slice(0, 19).replace('T', ' ')}</span>
+            <span>{formatTimeFull(detail.instant)}</span>
           </div>
 
           {/* ID */}

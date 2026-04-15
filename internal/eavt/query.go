@@ -25,7 +25,7 @@ func entityStateUpTo(sqlTx *sql.Tx, entityID int64, asOfTx int64) (map[string]Va
 		query = `
 			WITH ranked AS (
 				SELECT a, v, tx, op,
-					ROW_NUMBER() OVER (PARTITION BY a ORDER BY tx DESC) as rn
+					ROW_NUMBER() OVER (PARTITION BY a ORDER BY tx DESC, rowid DESC) as rn
 				FROM datoms
 				WHERE e = ? AND tx <= ?
 			)
@@ -37,7 +37,7 @@ func entityStateUpTo(sqlTx *sql.Tx, entityID int64, asOfTx int64) (map[string]Va
 		query = `
 			WITH ranked AS (
 				SELECT a, v, tx, op,
-					ROW_NUMBER() OVER (PARTITION BY a ORDER BY tx DESC) as rn
+					ROW_NUMBER() OVER (PARTITION BY a ORDER BY tx DESC, rowid DESC) as rn
 				FROM datoms
 				WHERE e = ?
 			)

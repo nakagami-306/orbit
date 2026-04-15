@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { formatTimeShort } from '../utils/time'
 
 interface ThreadNodeData {
   title: string
@@ -43,7 +44,7 @@ function ThreadNode({ data, selected }: NodeProps) {
         <span style={{
           color: d.status === 'open' ? '#22c55e' : '#888',
         }}>{d.status}</span>
-        {d.instant && <span>{d.instant.slice(0, 10)}</span>}
+        {d.instant && <span>{formatTimeShort(d.instant)}</span>}
       </div>
 
       <Handle type="source" position={Position.Bottom} style={{ background: '#555', width: 5, height: 5 }} />
