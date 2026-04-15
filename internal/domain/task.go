@@ -95,7 +95,7 @@ func (s *TaskService) ListTasks(ctx context.Context, projectEntityID int64, stat
 	}
 	defer rows.Close()
 
-	var tasks []Task
+	tasks := make([]Task, 0)
 	for rows.Next() {
 		var t Task
 		if err := rows.Scan(&t.EntityID, &t.StableID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.Assignee); err != nil {

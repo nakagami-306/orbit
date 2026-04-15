@@ -129,7 +129,7 @@ func newMilestoneListCmd(app *App) *cobra.Command {
 				Description string `json:"description"`
 				Instant     string `json:"instant"`
 			}
-			var entries []entry
+			entries := make([]entry, 0)
 			for rows.Next() {
 				var e entry
 				var instant sql.NullString

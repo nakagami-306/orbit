@@ -53,7 +53,7 @@ func newSectionLogCmd(app *App) *cobra.Command {
 				Rationale string `json:"rationale"`
 				Instant   string `json:"instant"`
 			}
-			var entries []entry
+			entries := make([]entry, 0)
 			for rows.Next() {
 				var e entry
 				if err := rows.Scan(&e.StableID, &e.Title, &e.Rationale, &e.Instant); err != nil {

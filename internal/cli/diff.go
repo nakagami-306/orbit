@@ -62,7 +62,7 @@ func newDiffCmd(app *App) *cobra.Command {
 				Before  string `json:"before,omitempty"`
 				After   string `json:"after,omitempty"`
 			}
-			var diffs []diffEntry
+			diffs := make([]diffEntry, 0)
 
 			// Check sections in A
 			for id, a := range mapA {

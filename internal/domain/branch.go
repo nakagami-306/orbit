@@ -116,7 +116,7 @@ func (s *BranchService) ListBranches(ctx context.Context, projectEntityID int64)
 	}
 	defer rows.Close()
 
-	var branches []Branch
+	branches := make([]Branch, 0)
 	for rows.Next() {
 		var b Branch
 		var headID sql.NullInt64
