@@ -75,21 +75,67 @@ func (d *DB) Tx(ctx context.Context, fn func(*sql.Tx) error) error {
 	return tx.Commit()
 }
 
+// migrations is an ordered list of incremental DDL applied to existing databases.
+// Each entry corresponds to a user_version transition: index 0 migrates v0→v1, etc.
+// New databases get the full SchemaSQL and skip these entirely.
+var migrations = []string{
+	// v0 → v1: add Topic entity tables
+	`CREATE TABLE IF NOT EXISTS p_topics (
+	    entity_id            INTEGER PRIMARY KEY,
+	    stable_id            TEXT NOT NULL,
+	    project_id           INTEGER NOT NULL,
+	    title                TEXT NOT NULL,
+	    description          TEXT,
+	    status               TEXT NOT NULL DEFAULT 'open',
+	    outcome_decision_id  INTEGER,
+	    FOREIGN KEY (entity_id) REFERENCES entities(id)
+	);
+	CREATE TABLE IF NOT EXISTS topic_threads (
+	    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+	    topic_id  INTEGER NOT NULL,
+	    thread_id INTEGER NOT NULL,
+	    UNIQUE(topic_id, thread_id),
+	    FOREIGN KEY (topic_id) REFERENCES p_topics(entity_id),
+	    FOREIGN KEY (thread_id) REFERENCES p_threads(entity_id)
+	);`,
+}
+
+// schemaVersion is the current schema version. Must equal len(migrations).
+const schemaVersion = 1
+
 func (d *DB) migrate() error {
-	// Check if schema already exists
+	// Check if this is a brand-new database (no tables at all)
 	var count int
 	err := d.conn.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='entities'").Scan(&count)
 	if err != nil {
 		return err
 	}
-	if count > 0 {
-		return nil // already migrated
+
+	if count == 0 {
+		// Fresh database: apply full schema and set version
+		if _, err := d.conn.Exec(SchemaSQL); err != nil {
+			return fmt.Errorf("apply schema: %w", err)
+		}
+		if _, err := d.conn.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+			return fmt.Errorf("set user_version: %w", err)
+		}
+		return nil
 	}
 
-	// Apply full schema
-	_, err = d.conn.Exec(SchemaSQL)
-	if err != nil {
-		return fmt.Errorf("apply schema: %w", err)
+	// Existing database: apply incremental migrations
+	var ver int
+	if err := d.conn.QueryRow("PRAGMA user_version").Scan(&ver); err != nil {
+		return fmt.Errorf("read user_version: %w", err)
+	}
+
+	for ver < schemaVersion {
+		if _, err := d.conn.Exec(migrations[ver]); err != nil {
+			return fmt.Errorf("migration v%d→v%d: %w", ver, ver+1, err)
+		}
+		ver++
+		if _, err := d.conn.Exec(fmt.Sprintf("PRAGMA user_version = %d", ver)); err != nil {
+			return fmt.Errorf("set user_version to %d: %w", ver, err)
+		}
 	}
 	return nil
 }

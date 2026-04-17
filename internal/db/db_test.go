@@ -99,6 +99,67 @@ func TestImmutabilityTriggers(t *testing.T) {
 	}
 }
 
+func TestMigrateExistingDB(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
+
+	// Create a v0 database: full schema minus p_topics/topic_threads, no user_version set
+	d, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	// Simulate a legacy DB by dropping the new tables and resetting user_version to 0
+	d.Conn().Exec("DROP TABLE IF EXISTS topic_threads")
+	d.Conn().Exec("DROP TABLE IF EXISTS p_topics")
+	d.Conn().Exec("PRAGMA user_version = 0")
+	d.Close()
+
+	// Re-open should apply incremental migration v0→v1
+	d2, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after migration: %v", err)
+	}
+	defer d2.Close()
+
+	// Verify new tables exist
+	for _, table := range []string{"p_topics", "topic_threads"} {
+		var count int
+		err := d2.Conn().QueryRow(
+			"SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table,
+		).Scan(&count)
+		if err != nil {
+			t.Fatalf("query for table %s: %v", table, err)
+		}
+		if count != 1 {
+			t.Errorf("table %s not found after migration", table)
+		}
+	}
+
+	// Verify user_version is current
+	var ver int
+	d2.Conn().QueryRow("PRAGMA user_version").Scan(&ver)
+	if ver != schemaVersion {
+		t.Errorf("user_version = %d, want %d", ver, schemaVersion)
+	}
+}
+
+func TestNewDBSetsVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
+
+	d, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer d.Close()
+
+	var ver int
+	d.Conn().QueryRow("PRAGMA user_version").Scan(&ver)
+	if ver != schemaVersion {
+		t.Errorf("user_version = %d, want %d", ver, schemaVersion)
+	}
+}
+
 func TestOpenIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.db")
