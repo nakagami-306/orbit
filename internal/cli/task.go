@@ -44,8 +44,28 @@ func newTaskCreateCmd(app *App) *cobra.Command {
 				return err
 			}
 
+			// Resolve --source flag to entity type and ID
+			var sourceType string
+			var sourceID *int64
+			if source != "" {
+				var eid int64
+				var etype string
+				err := app.DB.Conn().QueryRow(
+					"SELECT id, entity_type FROM entities WHERE stable_id LIKE ?",
+					source+"%",
+				).Scan(&eid, &etype)
+				if err != nil {
+					return fmt.Errorf("source %q not found: %w", source, err)
+				}
+				if etype != "decision" && etype != "thread" {
+					return fmt.Errorf("source must be a decision or thread, got %s", etype)
+				}
+				sourceType = etype
+				sourceID = &eid
+			}
+
 			svc := taskService(app)
-			stableID, err := svc.CreateTask(cmd.Context(), info.ProjectEntityID, title, "", priority, assignee, "", nil)
+			stableID, err := svc.CreateTask(cmd.Context(), info.ProjectEntityID, title, "", priority, assignee, sourceType, sourceID)
 			if err != nil {
 				return err
 			}

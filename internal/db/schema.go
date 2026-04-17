@@ -43,8 +43,6 @@ CREATE TABLE operations (
     tx_id       INTEGER,
     parent_op   INTEGER,
     instant     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    metadata    TEXT,
-    FOREIGN KEY (tx_id) REFERENCES transactions(id),
     FOREIGN KEY (parent_op) REFERENCES operations(id)
 );
 

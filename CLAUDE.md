@@ -118,7 +118,6 @@ func setupTestDB(t *testing.T) *db.DB {
 
 - `orbit decide` では `-s`（section）と `--content`（セクション全文）を必ず指定する
 - Section 内容は累積ではなく上書き（スナップショット）。そのトピックの「現在の設計状態」を全文リライトする
-- 大小問わず決定事項はすべて State に反映する
 - 履歴は Decision DAG が担うので、Section には最新の状態だけあればよい
 
 ### 問題・仕様変更が発生したら
