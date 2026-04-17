@@ -185,6 +185,17 @@ func RemovePidFile() error {
 	return os.Remove(PidFilePath())
 }
 
+// LogFilePath returns the path for the UI server log file.
+func LogFilePath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".orbit", "ui.log")
+}
+
+// OpenLogFile opens the log file for appending.
+func OpenLogFile() (*os.File, error) {
+	return os.OpenFile(LogFilePath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+}
+
 // --- Middleware ---
 
 func cors(next http.Handler) http.Handler {

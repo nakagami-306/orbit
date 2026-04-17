@@ -1,4 +1,4 @@
-<!-- orbit:generated | 2026-04-17T19:10:06Z | branch:main | head:019d9ca9-9b42-75c1-bdb5-a2f551aad25d -->
+<!-- orbit:generated | 2026-04-17T19:21:31Z | branch:main | head:019d9ce4-2958-76c8-8aa2-6af980c0a64e -->
 # orbit
 
 > あらゆる種類のプロジェクトの設計状態・意思決定・進行をバージョン管理するCLIツール。人間とAIの両方が同じインターフェースで操作できる。
@@ -296,5 +296,5 @@ API設計（全14エンドポイント）:
 - GET /api/tasks（projectName JOINで横断取得）, PATCH /api/tasks/:id（ステータス更新）
 - GET /api/health
 
-サーバー管理: orbit ui（バックグラウンド起動+ブラウザopen）、orbit ui stop、orbit ui status。PIDファイルで管理。
+サーバー管理: orbit ui（バックグラウンドデーモン起動+ブラウザopen）、orbit ui stop、orbit ui status。PIDファイルで管理。内部的に--daemonフラグ付きで自プロセスを再実行し、OSデタッチAPI(Windows: DETACHED_PROCESS, Unix: Setsid)で子プロセスを独立。ログは~/.orbit/ui.logへ出力。
 

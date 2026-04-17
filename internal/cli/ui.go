@@ -2,11 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/nakagami-306/orbit/internal/api"
 	"github.com/spf13/cobra"
@@ -20,53 +23,119 @@ func newUICmd(app *App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			port, _ := cmd.Flags().GetInt("port")
 			noBrowser, _ := cmd.Flags().GetBool("no-browser")
+			daemon, _ := cmd.Flags().GetBool("daemon")
 
 			// Check if already running
 			if pid, addr, err := api.ReadPidFile(); err == nil {
 				if isProcessRunning(pid) {
-					fmt.Printf("Orbit UI is already running at http://%s (PID %d)\n", addr, pid)
+					url := "http://" + addr
+					fmt.Printf("Orbit UI is already running at %s (PID %d)\n", url, pid)
+					if !noBrowser {
+						openBrowser(url)
+					}
 					return nil
 				}
 				// Stale PID file
 				api.RemovePidFile()
 			}
 
-			addr := fmt.Sprintf("127.0.0.1:%d", port)
-			srv, err := api.NewServer(addr)
-			if err != nil {
-				return fmt.Errorf("create server: %w", err)
+			if daemon {
+				return runDaemon(port)
 			}
-
-			actualAddr, err := srv.Start()
-			if err != nil {
-				return fmt.Errorf("start server: %w", err)
-			}
-
-			pid := os.Getpid()
-			if err := api.WritePidFile(pid, actualAddr); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: could not write PID file: %v\n", err)
-			}
-
-			url := "http://" + actualAddr
-			fmt.Printf("Orbit UI started at %s (PID %d)\n", url, pid)
-
-			if !noBrowser {
-				openBrowser(url)
-			}
-
-			// Block — server runs in the foreground of this process
-			// (launched as a detached process by the caller if background is desired)
-			select {}
+			return spawnDaemon(port, noBrowser)
 		},
 	}
 
 	cmd.Flags().IntP("port", "p", 19840, "Port to listen on")
 	cmd.Flags().Bool("no-browser", false, "Don't open browser automatically")
+	cmd.Flags().Bool("daemon", false, "Run as daemon process (internal)")
+	cmd.Flags().MarkHidden("daemon")
 
 	cmd.AddCommand(newUIStopCmd())
 	cmd.AddCommand(newUIStatusCmd())
 
 	return cmd
+}
+
+// runDaemon starts the server in the current process and blocks.
+// Called when --daemon flag is set (by the spawned child process).
+func runDaemon(port int) error {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	srv, err := api.NewServer(addr)
+	if err != nil {
+		return fmt.Errorf("create server: %w", err)
+	}
+
+	actualAddr, err := srv.Start()
+	if err != nil {
+		return fmt.Errorf("start server: %w", err)
+	}
+
+	pid := os.Getpid()
+	if err := api.WritePidFile(pid, actualAddr); err != nil {
+		return fmt.Errorf("write PID file: %w", err)
+	}
+
+	log.Printf("Orbit UI daemon started at http://%s (PID %d)", actualAddr, pid)
+
+	// Block forever — daemon process
+	select {}
+}
+
+// spawnDaemon re-executes this binary with --daemon in a detached process,
+// waits for the PID file, opens the browser, and returns immediately.
+func spawnDaemon(port int, noBrowser bool) error {
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolve executable: %w", err)
+	}
+
+	logFile, err := api.OpenLogFile()
+	if err != nil {
+		return fmt.Errorf("open log file: %w", err)
+	}
+
+	cmd := exec.Command(exe, "ui", "--daemon", "--port", strconv.Itoa(port))
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	cmd.Stdin = nil
+	setDetachAttrs(cmd)
+
+	if err := cmd.Start(); err != nil {
+		logFile.Close()
+		return fmt.Errorf("start daemon: %w", err)
+	}
+
+	// Release the child process handle — it's fully detached
+	cmd.Process.Release()
+	logFile.Close()
+
+	// Wait for the daemon to write its PID file (confirms successful startup)
+	addr, err := waitForPidFile(3 * time.Second)
+	if err != nil {
+		return fmt.Errorf("daemon failed to start (check %s): %w", api.LogFilePath(), err)
+	}
+
+	url := "http://" + addr
+	fmt.Printf("Orbit UI started at %s\n", url)
+
+	if !noBrowser {
+		openBrowser(url)
+	}
+
+	return nil
+}
+
+// waitForPidFile polls for the PID file to appear within the given timeout.
+func waitForPidFile(timeout time.Duration) (string, error) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if _, addr, err := api.ReadPidFile(); err == nil {
+			return addr, nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return "", fmt.Errorf("timeout waiting for server startup")
 }
 
 func newUIStopCmd() *cobra.Command {
@@ -137,12 +206,11 @@ func openBrowser(url string) {
 
 func isProcessRunning(pid int) bool {
 	if runtime.GOOS == "windows" {
-		// On Windows, os.FindProcess always succeeds; use tasklist to check
 		out, err := exec.Command("tasklist", "/FI", "PID eq "+strconv.Itoa(pid), "/NH").Output()
 		if err != nil {
 			return false
 		}
-		return len(out) > 0 && indexBytes(out, byte(strconv.Itoa(pid)[0])) >= 0
+		return strings.Contains(string(out), strconv.Itoa(pid))
 	}
 	proc, err := os.FindProcess(pid)
 	if err != nil {
@@ -150,13 +218,4 @@ func isProcessRunning(pid int) bool {
 	}
 	err = proc.Signal(syscall.Signal(0))
 	return err == nil
-}
-
-func indexBytes(b []byte, c byte) int {
-	for i, v := range b {
-		if v == c {
-			return i
-		}
-	}
-	return -1
 }
