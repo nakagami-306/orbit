@@ -17,8 +17,10 @@ const (
 	EntityThread    EntityType = "thread"
 	EntityEntry     EntityType = "entry"
 	EntityTask      EntityType = "task"
-	EntityMilestone EntityType = "milestone"
-	EntityBranch    EntityType = "branch"
+	EntityMilestone   EntityType = "milestone"
+	EntityBranch      EntityType = "branch"
+	EntityTopic       EntityType = "topic"
+	EntityTopicThread EntityType = "topic_thread"
 )
 
 // NewStableID generates a new UUID v7 for use as a stable entity identifier.

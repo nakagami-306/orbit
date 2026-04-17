@@ -70,6 +70,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(newBranchCmd(app))
 	root.AddCommand(newConflictCmd(app))
 	root.AddCommand(newTaskCmd(app))
+	root.AddCommand(newTopicCmd(app))
 	root.AddCommand(newMilestoneCmd(app))
 	root.AddCommand(newDiffCmd(app))
 	root.AddCommand(newLogCmd(app))

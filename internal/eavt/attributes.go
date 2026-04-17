@@ -79,3 +79,23 @@ const (
 	AttrMilestoneProjectID   = "milestone/project_id"
 	AttrMilestoneDecisionID  = "milestone/decision_id"
 )
+
+// Topic attributes
+const (
+	AttrTopicTitle           = "topic/title"
+	AttrTopicDescription     = "topic/description"
+	AttrTopicProjectID       = "topic/project_id"
+	AttrTopicStatus          = "topic/status"
+	AttrTopicOutcomeDecision = "topic/outcome_decision"
+)
+
+// TopicThread link attributes
+const (
+	AttrTopicThreadTopicID  = "topic_thread/topic_id"
+	AttrTopicThreadThreadID = "topic_thread/thread_id"
+)
+
+// Decision additional attribute
+const (
+	AttrDecisionSourceTopic = "decision/source_topic"
+)

@@ -40,6 +40,10 @@ func (p *Projector) ApplyDatoms(sqlTx *sql.Tx, entityID int64, entityType eavt.E
 		return p.applyTask(sqlTx, entityID, stableID, state)
 	case eavt.EntityMilestone:
 		return p.applyMilestone(sqlTx, entityID, stableID, state)
+	case eavt.EntityTopic:
+		return p.applyTopic(sqlTx, entityID, stableID, state)
+	case eavt.EntityTopicThread:
+		return p.applyTopicThread(sqlTx, entityID, state)
 	default:
 		return fmt.Errorf("unknown entity type: %s", entityType)
 	}
@@ -100,6 +104,7 @@ func (p *Projector) applyDecision(sqlTx *sql.Tx, entityID int64, stableID string
 	author := valStr(state, eavt.AttrDecisionAuthor)
 	projectID := valInt(state, eavt.AttrDecisionProjectID)
 	sourceThread := valIntPtr(state, eavt.AttrDecisionSourceThread)
+	sourceTopic := valIntPtr(state, eavt.AttrDecisionSourceTopic)
 
 	// Get the tx_id and instant for this decision
 	var txID int64
@@ -114,12 +119,13 @@ func (p *Projector) applyDecision(sqlTx *sql.Tx, entityID int64, stableID string
 	}
 
 	_, err = sqlTx.Exec(`
-		INSERT INTO p_decisions (entity_id, branch_id, stable_id, project_id, title, rationale, context, author, source_thread_id, tx_id, instant)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO p_decisions (entity_id, branch_id, stable_id, project_id, title, rationale, context, author, source_thread_id, source_topic_id, tx_id, instant)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(entity_id, branch_id) DO UPDATE SET
 			title=excluded.title, rationale=excluded.rationale, context=excluded.context,
-			author=excluded.author, source_thread_id=excluded.source_thread_id, tx_id=excluded.tx_id, instant=excluded.instant
-	`, entityID, branchID, stableID, projectID, title, rationale, ctx, author, sourceThread, txID, instant)
+			author=excluded.author, source_thread_id=excluded.source_thread_id,
+			source_topic_id=excluded.source_topic_id, tx_id=excluded.tx_id, instant=excluded.instant
+	`, entityID, branchID, stableID, projectID, title, rationale, ctx, author, sourceThread, sourceTopic, txID, instant)
 	if err != nil {
 		return err
 	}
@@ -251,6 +257,37 @@ func (p *Projector) applyMilestone(sqlTx *sql.Tx, entityID int64, stableID strin
 		ON CONFLICT(entity_id) DO UPDATE SET
 			title=excluded.title, description=excluded.description, decision_id=excluded.decision_id
 	`, entityID, stableID, projectID, title, desc, decisionID)
+	return err
+}
+
+func (p *Projector) applyTopic(sqlTx *sql.Tx, entityID int64, stableID string, state map[string]eavt.Value) error {
+	title := valStr(state, eavt.AttrTopicTitle)
+	desc := valStr(state, eavt.AttrTopicDescription)
+	status := valStr(state, eavt.AttrTopicStatus)
+	if status == "" {
+		status = "open"
+	}
+	projectID := valInt(state, eavt.AttrTopicProjectID)
+	outcomeDecision := valIntPtr(state, eavt.AttrTopicOutcomeDecision)
+
+	_, err := sqlTx.Exec(`
+		INSERT INTO p_topics (entity_id, stable_id, project_id, title, description, status, outcome_decision_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(entity_id) DO UPDATE SET
+			title=excluded.title, description=excluded.description, status=excluded.status,
+			outcome_decision_id=excluded.outcome_decision_id
+	`, entityID, stableID, projectID, title, desc, status, outcomeDecision)
+	return err
+}
+
+func (p *Projector) applyTopicThread(sqlTx *sql.Tx, entityID int64, state map[string]eavt.Value) error {
+	topicID := valInt(state, eavt.AttrTopicThreadTopicID)
+	threadID := valInt(state, eavt.AttrTopicThreadThreadID)
+
+	_, err := sqlTx.Exec(`
+		INSERT OR IGNORE INTO topic_threads (topic_id, thread_id)
+		VALUES (?, ?)
+	`, topicID, threadID)
 	return err
 }
 

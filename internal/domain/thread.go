@@ -128,7 +128,8 @@ func (s *ThreadService) CloseThread(ctx context.Context, threadEntityID int64, r
 }
 
 // Decide converges a thread into a decision and updates state.
-func (s *ThreadService) Decide(ctx context.Context, threadEntityID int64, projectEntityID, branchID int64, sectionEntityID int64, newContent, decisionTitle, rationale, author string) (decisionStableID string, err error) {
+// sourceTopicID is optional: if non-nil, the decision is also linked to the topic and the topic is marked decided.
+func (s *ThreadService) Decide(ctx context.Context, threadEntityID int64, projectEntityID, branchID int64, sectionEntityID int64, newContent, decisionTitle, rationale, author string, sourceTopicID ...int64) (decisionStableID string, err error) {
 	decisionStableID = eavt.NewStableID()
 
 	err = s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
@@ -169,10 +170,24 @@ func (s *ThreadService) Decide(ctx context.Context, threadEntityID int64, projec
 			eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{*currentHead}), txID)
 		}
 
+		// Link decision to source topic if provided
+		var topicID int64
+		if len(sourceTopicID) > 0 && sourceTopicID[0] > 0 {
+			topicID = sourceTopicID[0]
+			eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionSourceTopic, eavt.NewRef(topicID), txID)
+		}
+
 		// Update thread status to decided
 		eavt.RetractDatom(sqlTx, threadEntityID, eavt.AttrThreadStatus, eavt.NewEnum("open"), txID)
 		eavt.AssertDatom(sqlTx, threadEntityID, eavt.AttrThreadStatus, eavt.NewEnum("decided"), txID)
 		eavt.AssertDatom(sqlTx, threadEntityID, eavt.AttrThreadOutcomeDecision, eavt.NewRef(decisionEntityID), txID)
+
+		// Update topic status to decided if provided
+		if topicID > 0 {
+			eavt.RetractDatom(sqlTx, topicID, eavt.AttrTopicStatus, eavt.NewEnum("open"), txID)
+			eavt.AssertDatom(sqlTx, topicID, eavt.AttrTopicStatus, eavt.NewEnum("decided"), txID)
+			eavt.AssertDatom(sqlTx, topicID, eavt.AttrTopicOutcomeDecision, eavt.NewRef(decisionEntityID), txID)
+		}
 
 		// Update branch head
 		if currentHead != nil {
@@ -187,6 +202,11 @@ func (s *ThreadService) Decide(ctx context.Context, threadEntityID int64, projec
 		s.Projector.ApplyDatoms(sqlTx, decisionEntityID, eavt.EntityDecision, branchID)
 		s.Projector.ApplyDatoms(sqlTx, threadEntityID, eavt.EntityThread, branchID)
 		s.Projector.ApplyDatoms(sqlTx, branchID, eavt.EntityBranch, branchID)
+
+		// Apply topic projection if provided
+		if topicID > 0 {
+			s.Projector.ApplyDatoms(sqlTx, topicID, eavt.EntityTopic, branchID)
+		}
 
 		if sectionEntityID > 0 {
 			s.Projector.MarkStale(sqlTx, sectionEntityID, branchID, decisionEntityID)
