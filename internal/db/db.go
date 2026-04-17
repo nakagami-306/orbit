@@ -115,10 +115,12 @@ var migrations = []string{
 	INSERT INTO p_branches (entity_id, stable_id, project_id, name, head_decision_id, status, is_main)
 	    SELECT entity_id, stable_id, project_id, name, head_decision_id, status, is_main FROM _p_branches_backup;
 	DROP TABLE _p_branches_backup;`,
+	// v2 → v3: add source_topic_id to p_decisions
+	`ALTER TABLE p_decisions ADD COLUMN source_topic_id INTEGER;`,
 }
 
 // schemaVersion is the current schema version. Must equal len(migrations).
-const schemaVersion = 2
+const schemaVersion = 3
 
 func (d *DB) migrate() error {
 	// Check if this is a brand-new database (no tables at all)

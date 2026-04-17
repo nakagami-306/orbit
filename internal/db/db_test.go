@@ -108,9 +108,19 @@ func TestMigrateExistingDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	// Simulate a legacy DB by dropping the new tables and resetting user_version to 0
+	// Simulate a v0 legacy DB by reverting all migrations
 	d.Conn().Exec("DROP TABLE IF EXISTS topic_threads")
 	d.Conn().Exec("DROP TABLE IF EXISTS p_topics")
+	d.Conn().Exec("ALTER TABLE p_decisions DROP COLUMN source_topic_id")
+	// p_branches: recreate without fork_tx_id
+	d.Conn().Exec("CREATE TABLE _pb_bak AS SELECT entity_id, stable_id, project_id, name, head_decision_id, status, is_main FROM p_branches")
+	d.Conn().Exec("DROP TABLE p_branches")
+	d.Conn().Exec(`CREATE TABLE p_branches (
+		entity_id INTEGER PRIMARY KEY, stable_id TEXT NOT NULL, project_id INTEGER NOT NULL,
+		name TEXT, head_decision_id INTEGER, status TEXT NOT NULL DEFAULT 'active',
+		is_main INTEGER NOT NULL DEFAULT 0, FOREIGN KEY (entity_id) REFERENCES entities(id))`)
+	d.Conn().Exec("INSERT INTO p_branches SELECT * FROM _pb_bak")
+	d.Conn().Exec("DROP TABLE _pb_bak")
 	d.Conn().Exec("PRAGMA user_version = 0")
 	d.Close()
 
