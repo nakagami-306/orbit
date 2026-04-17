@@ -32,6 +32,12 @@ type TaskService struct {
 
 // CreateTask creates a new task.
 func (s *TaskService) CreateTask(ctx context.Context, projectEntityID int64, title, description, priority, assignee string, sourceType string, sourceID *int64) (stableID string, err error) {
+	if priority != "" {
+		if err := ValidateTaskPriority(priority); err != nil {
+			return "", err
+		}
+	}
+
 	stableID = eavt.NewStableID()
 
 	err = s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
@@ -108,6 +114,12 @@ func (s *TaskService) ListTasks(ctx context.Context, projectEntityID int64, stat
 
 // UpdateTask updates a task's status and/or assignee.
 func (s *TaskService) UpdateTask(ctx context.Context, taskEntityID int64, newStatus, newAssignee string) error {
+	if newStatus != "" {
+		if err := ValidateTaskStatus(newStatus); err != nil {
+			return err
+		}
+	}
+
 	return s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
 		var branchID int64
 		var projectID int64
@@ -122,6 +134,14 @@ func (s *TaskService) UpdateTask(ctx context.Context, taskEntityID int64, newSta
 		state, _ := eavt.EntityState(sqlTx, taskEntityID)
 
 		if newStatus != "" {
+			// Validate state transition
+			if currentVal, ok := state[eavt.AttrTaskStatus]; ok {
+				currentStatus, _ := currentVal.AsString()
+				if err := ValidateTaskTransition(currentStatus, newStatus); err != nil {
+					return err
+				}
+			}
+
 			if old, ok := state[eavt.AttrTaskStatus]; ok {
 				eavt.RetractDatom(sqlTx, taskEntityID, eavt.AttrTaskStatus, old, txID)
 			}

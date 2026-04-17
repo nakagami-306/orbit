@@ -35,6 +35,10 @@ func newTaskCreateCmd(app *App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			title := args[0]
 
+			if err := domain.ValidateTaskPriority(priority); err != nil {
+				return err
+			}
+
 			info, err := app.resolveProject()
 			if err != nil {
 				return err
