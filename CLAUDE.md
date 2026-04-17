@@ -97,6 +97,36 @@ func setupTestDB(t *testing.T) *db.DB {
 }
 ```
 
+## Orbit の使い方（Claude向け）
+
+このプロジェクト自体が Orbit で管理されている。作業中は以下を厳守する。
+
+### Thread での議論記録
+
+チャット上で議論が進んだら、**その都度** `orbit thread add` で記録する。結論だけでなく経緯も残す：
+- 選択肢が出たら `--type option` で記録
+- 事実や調査結果は `--type finding`
+- 選択肢への賛否は `--type argument --stance for/against --target <entry-id>`
+- 結論は `--type conclusion`
+- 自由な議論メモは `--type note`
+
+「後でまとめて記録」は禁止。議論のたびにリアルタイムで記録する。
+
+### Decision と State の同期
+
+**全 Decision は必ずいずれかの Section を更新しなければならない。**
+
+- `orbit decide` では `-s`（section）と `--content`（セクション全文）を必ず指定する
+- Section 内容は累積ではなく上書き（スナップショット）。そのトピックの「現在の設計状態」を全文リライトする
+- 大小問わず決定事項はすべて State に反映する
+- 履歴は Decision DAG が担うので、Section には最新の状態だけあればよい
+
+### 問題・仕様変更が発生したら
+
+1. まず `orbit thread create` で起票する
+2. チャットで議論しながら thread にエントリを記録する
+3. 方針が決まったら `orbit decide` で収束させ、**必ず Section を更新する**
+
 ## 設計ドキュメント
 
 詳細な設計仕様は `C:\Users\seito\Desktop\manager\` を参照:
