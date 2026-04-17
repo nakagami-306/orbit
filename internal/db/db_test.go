@@ -23,7 +23,7 @@ func TestOpenCreatesSchema(t *testing.T) {
 
 	// Verify core tables exist
 	tables := []string{"entities", "datoms", "transactions", "operations",
-		"p_projects", "p_sections", "p_branches", "p_decisions", "workspaces"}
+		"p_projects", "p_sections", "p_branches", "p_decisions", "p_topics", "topic_threads", "workspaces"}
 	for _, table := range tables {
 		var count int
 		err := d.Conn().QueryRow(

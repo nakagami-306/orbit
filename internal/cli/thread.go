@@ -298,7 +298,7 @@ func newThreadCloseCmd(app *App) *cobra.Command {
 }
 
 func newDecideCmd(app *App) *cobra.Command {
-	var title, rationale, content, sectionFlag, oldStr, newStr string
+	var title, rationale, content, sectionFlag, oldStr, newStr, sourceTopicFlag string
 
 	cmd := &cobra.Command{
 		Use:   "decide <thread-id>",
@@ -363,8 +363,22 @@ func newDecideCmd(app *App) *cobra.Command {
 				}
 			}
 
+			// Resolve source topic if specified
+			var sourceTopicArgs []int64
+			if sourceTopicFlag != "" {
+				var topicEntityID int64
+				err = app.DB.Conn().QueryRow(
+					"SELECT entity_id FROM p_topics WHERE project_id = ? AND stable_id LIKE ?",
+					info.ProjectEntityID, sourceTopicFlag+"%",
+				).Scan(&topicEntityID)
+				if err != nil {
+					return fmt.Errorf("topic %q not found: %w", sourceTopicFlag, err)
+				}
+				sourceTopicArgs = append(sourceTopicArgs, topicEntityID)
+			}
+
 			svc := threadService(app)
-			decSID, err := svc.Decide(cmd.Context(), threadEntityID, info.ProjectEntityID, info.BranchID, sectionEntityID, content, title, rationale, "user")
+			decSID, err := svc.Decide(cmd.Context(), threadEntityID, info.ProjectEntityID, info.BranchID, sectionEntityID, content, title, rationale, "user", sourceTopicArgs...)
 			if err != nil {
 				return err
 			}
@@ -389,5 +403,6 @@ func newDecideCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVarP(&sectionFlag, "section", "s", "", "Section to update (required)")
 	cmd.Flags().StringVar(&oldStr, "old", "", "Text to find in section (for patch mode)")
 	cmd.Flags().StringVar(&newStr, "new", "", "Replacement text (for patch mode)")
+	cmd.Flags().StringVar(&sourceTopicFlag, "source-topic", "", "Source topic ID (marks topic as decided)")
 	return cmd
 }

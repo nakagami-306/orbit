@@ -123,6 +123,7 @@ CREATE TABLE p_decisions (
     context          TEXT,
     author           TEXT,
     source_thread_id INTEGER,
+    source_topic_id  INTEGER,
     tx_id            INTEGER NOT NULL,
     instant          TEXT NOT NULL,
     PRIMARY KEY (entity_id, branch_id),
@@ -200,6 +201,26 @@ CREATE TABLE p_milestones (
     decision_id INTEGER NOT NULL,
     FOREIGN KEY (entity_id) REFERENCES entities(id),
     FOREIGN KEY (decision_id) REFERENCES entities(id)
+);
+
+CREATE TABLE p_topics (
+    entity_id            INTEGER PRIMARY KEY,
+    stable_id            TEXT NOT NULL,
+    project_id           INTEGER NOT NULL,
+    title                TEXT NOT NULL,
+    description          TEXT,
+    status               TEXT NOT NULL DEFAULT 'open',
+    outcome_decision_id  INTEGER,
+    FOREIGN KEY (entity_id) REFERENCES entities(id)
+);
+
+CREATE TABLE topic_threads (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    topic_id  INTEGER NOT NULL,
+    thread_id INTEGER NOT NULL,
+    UNIQUE(topic_id, thread_id),
+    FOREIGN KEY (topic_id) REFERENCES p_topics(entity_id),
+    FOREIGN KEY (thread_id) REFERENCES p_threads(entity_id)
 );
 
 CREATE TABLE p_conflicts (
