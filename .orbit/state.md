@@ -1,4 +1,4 @@
-<!-- orbit:generated | 2026-04-15T18:37:41Z | branch:main | head:019d926f-4d4a-75c3-8d07-6c67052c3af3 -->
+<!-- orbit:generated | 2026-04-17T00:02:21Z | branch:main | head:019d98be-e6e9-7aeb-9716-c6b0ad819ab1 -->
 # orbit
 
 > あらゆる種類のプロジェクトの設計状態・意思決定・進行をバージョン管理するCLIツール。人間とAIの両方が同じインターフェースで操作できる。
@@ -203,7 +203,7 @@ orbit init <name>: プロジェクト作成+カレントディレクトリへの
 - SQLite: modernc.org/sqlite（pure Go、CGO不要でクロスコンパイル容易）またはgo-sqlite3（CGO、性能重視時）
 - 配布: シングルバイナリ
 
-選定理由: CLIツールとしての実績（gh, docker, k8s系）、開発速度、AI支援との相性、pure Go SQLiteによるクロスコンパイルの容易さ。
+選定理由: CLIツールとしての実績（gh, docker, k8s系）、開発速度、AI支援との相性、pure Go SQLiteによるクロスコンパイルの容易さ。Web UIはReact + React Flow + Viteで構築し、go:embedでシングルバイナリに統合。
 
 Rust不採用理由: 型安全性の恩恵はあるがMVP到達速度を優先。EAVTの型管理はGoのinterface+テストで十分カバー可能と判断。
 

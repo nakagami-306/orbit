@@ -12,7 +12,7 @@ import (
 )
 
 func newEditCmd(app *App) *cobra.Command {
-	var title, rationale, content, sectionFlag string
+	var title, rationale, content, sectionFlag, oldStr, newStr string
 	var useStdin bool
 
 	cmd := &cobra.Command{
@@ -35,6 +35,13 @@ func newEditCmd(app *App) *cobra.Command {
 			}
 			if rationale == "" {
 				return fmt.Errorf("-r (rationale) is required")
+			}
+
+			// Validate: --content/--stdin/--old+--new, mutually exclusive
+			hasContent := content != ""
+			hasPatch := oldStr != "" || newStr != ""
+			if hasContent && hasPatch {
+				return fmt.Errorf("--content and --old/--new are mutually exclusive")
 			}
 
 			info, err := app.resolveProject()
@@ -79,7 +86,6 @@ func newEditCmd(app *App) *cobra.Command {
 
 			// Find target section
 			if sectionFlag == "" && len(sections) == 1 {
-				// Single section: edit it
 				sectionFlag = sections[0].Title
 			}
 			if sectionFlag == "" {
@@ -103,8 +109,20 @@ func newEditCmd(app *App) *cobra.Command {
 				return fmt.Errorf("section %q not found", sectionFlag)
 			}
 
+			// If patch mode, resolve the new content
+			if hasPatch {
+				sec, err := app.Service.GetSection(cmd.Context(), targetSection.EntityID, info.BranchID)
+				if err != nil {
+					return fmt.Errorf("read section: %w", err)
+				}
+				content, err = applyPatch(sec.Content, oldStr, newStr)
+				if err != nil {
+					return err
+				}
+			}
+
 			if content == "" {
-				return fmt.Errorf("--content is required (editor mode not yet implemented)")
+				return fmt.Errorf("--content, --stdin, or --old/--new is required")
 			}
 
 			decSID, err := app.Service.EditSection(
@@ -135,9 +153,11 @@ func newEditCmd(app *App) *cobra.Command {
 
 	cmd.Flags().StringVarP(&title, "title", "t", "", "Decision title (required)")
 	cmd.Flags().StringVarP(&rationale, "rationale", "r", "", "Decision rationale (required)")
-	cmd.Flags().StringVar(&content, "content", "", "New content (bypasses editor)")
+	cmd.Flags().StringVar(&content, "content", "", "New content (full replace)")
 	cmd.Flags().StringVarP(&sectionFlag, "section", "s", "", "Section to edit")
 	cmd.Flags().BoolVar(&useStdin, "stdin", false, "Read content from stdin")
+	cmd.Flags().StringVar(&oldStr, "old", "", "Text to find in section (for patch mode)")
+	cmd.Flags().StringVar(&newStr, "new", "", "Replacement text (for patch mode)")
 
 	return cmd
 }

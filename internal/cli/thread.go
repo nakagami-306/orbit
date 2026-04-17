@@ -298,7 +298,7 @@ func newThreadCloseCmd(app *App) *cobra.Command {
 }
 
 func newDecideCmd(app *App) *cobra.Command {
-	var title, rationale, content, sectionFlag string
+	var title, rationale, content, sectionFlag, oldStr, newStr string
 
 	cmd := &cobra.Command{
 		Use:   "decide <thread-id>",
@@ -312,6 +312,19 @@ func newDecideCmd(app *App) *cobra.Command {
 			}
 			if rationale == "" {
 				return fmt.Errorf("-r (rationale) is required")
+			}
+			if sectionFlag == "" {
+				return fmt.Errorf("-s (section) is required: every Decision must update a Section")
+			}
+
+			// Validate: must specify either --content (full replace) or --old/--new (patch)
+			hasContent := content != ""
+			hasPatch := oldStr != "" || newStr != ""
+			if !hasContent && !hasPatch {
+				return fmt.Errorf("--content or --old/--new is required: every Decision must change a Section")
+			}
+			if hasContent && hasPatch {
+				return fmt.Errorf("--content and --old/--new are mutually exclusive")
 			}
 
 			info, err := app.resolveProject()
@@ -328,15 +341,25 @@ func newDecideCmd(app *App) *cobra.Command {
 				return fmt.Errorf("thread %q not found: %w", threadPrefix, err)
 			}
 
-			// Resolve section if specified
+			// Resolve section
 			var sectionEntityID int64
-			if sectionFlag != "" {
-				err = app.DB.Conn().QueryRow(
-					"SELECT entity_id FROM p_sections WHERE project_id = ? AND branch_id = ? AND (title = ? OR stable_id LIKE ?)",
-					info.ProjectEntityID, info.BranchID, sectionFlag, sectionFlag+"%",
-				).Scan(&sectionEntityID)
+			err = app.DB.Conn().QueryRow(
+				"SELECT entity_id FROM p_sections WHERE project_id = ? AND branch_id = ? AND (title = ? OR stable_id LIKE ?)",
+				info.ProjectEntityID, info.BranchID, sectionFlag, sectionFlag+"%",
+			).Scan(&sectionEntityID)
+			if err != nil {
+				return fmt.Errorf("section %q not found: %w", sectionFlag, err)
+			}
+
+			// If patch mode, resolve the new content by applying old→new on existing content
+			if hasPatch {
+				sec, err := app.Service.GetSection(cmd.Context(), sectionEntityID, info.BranchID)
 				if err != nil {
-					return fmt.Errorf("section %q not found: %w", sectionFlag, err)
+					return fmt.Errorf("read section: %w", err)
+				}
+				content, err = applyPatch(sec.Content, oldStr, newStr)
+				if err != nil {
+					return err
 				}
 			}
 
@@ -362,7 +385,9 @@ func newDecideCmd(app *App) *cobra.Command {
 
 	cmd.Flags().StringVarP(&title, "title", "t", "", "Decision title (required)")
 	cmd.Flags().StringVarP(&rationale, "rationale", "r", "", "Decision rationale (required)")
-	cmd.Flags().StringVar(&content, "content", "", "New section content")
-	cmd.Flags().StringVarP(&sectionFlag, "section", "s", "", "Section to update")
+	cmd.Flags().StringVar(&content, "content", "", "New section content (full replace)")
+	cmd.Flags().StringVarP(&sectionFlag, "section", "s", "", "Section to update (required)")
+	cmd.Flags().StringVar(&oldStr, "old", "", "Text to find in section (for patch mode)")
+	cmd.Flags().StringVar(&newStr, "new", "", "Replacement text (for patch mode)")
 	return cmd
 }
