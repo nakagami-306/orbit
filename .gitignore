@@ -6,3 +6,4 @@ internal/api/dist/
 web/node_modules/
 .claude/worktrees/
 .claude/settings.local.json
+.orbit/.stop_hook_state

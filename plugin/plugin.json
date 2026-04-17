@@ -1,0 +1,5 @@
+{
+  "name": "orbit",
+  "version": "0.3.0",
+  "description": "Orbit project management CLI integration for Claude Code. Teaches Claude when and how to use orbit commands for design state tracking, decision recording, and structured discussion."
+}
