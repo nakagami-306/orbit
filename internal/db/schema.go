@@ -145,6 +145,7 @@ CREATE TABLE p_branches (
     head_decision_id INTEGER,
     status           TEXT NOT NULL DEFAULT 'active',
     is_main          INTEGER NOT NULL DEFAULT 0,
+    fork_tx_id       INTEGER,
     FOREIGN KEY (entity_id) REFERENCES entities(id)
 );
 

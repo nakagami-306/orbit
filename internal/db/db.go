@@ -98,10 +98,27 @@ var migrations = []string{
 	    FOREIGN KEY (topic_id) REFERENCES p_topics(entity_id),
 	    FOREIGN KEY (thread_id) REFERENCES p_threads(entity_id)
 	);`,
+	// v1 → v2: add fork_tx_id to p_branches for 3-way merge
+	`CREATE TABLE IF NOT EXISTS _p_branches_backup AS SELECT * FROM p_branches;
+	DROP TABLE p_branches;
+	CREATE TABLE p_branches (
+	    entity_id        INTEGER PRIMARY KEY,
+	    stable_id        TEXT NOT NULL,
+	    project_id       INTEGER NOT NULL,
+	    name             TEXT,
+	    head_decision_id INTEGER,
+	    status           TEXT NOT NULL DEFAULT 'active',
+	    is_main          INTEGER NOT NULL DEFAULT 0,
+	    fork_tx_id       INTEGER,
+	    FOREIGN KEY (entity_id) REFERENCES entities(id)
+	);
+	INSERT INTO p_branches (entity_id, stable_id, project_id, name, head_decision_id, status, is_main)
+	    SELECT entity_id, stable_id, project_id, name, head_decision_id, status, is_main FROM _p_branches_backup;
+	DROP TABLE _p_branches_backup;`,
 }
 
 // schemaVersion is the current schema version. Must equal len(migrations).
-const schemaVersion = 1
+const schemaVersion = 2
 
 func (d *DB) migrate() error {
 	// Check if this is a brand-new database (no tables at all)

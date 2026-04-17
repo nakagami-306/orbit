@@ -1,4 +1,4 @@
-<!-- orbit:generated | 2026-04-17T18:17:34Z | branch:main | head:019d9ca9-9b42-75c1-bdb5-a2f551aad25d -->
+<!-- orbit:generated | 2026-04-17T19:10:06Z | branch:main | head:019d9ca9-9b42-75c1-bdb5-a2f551aad25d -->
 # orbit
 
 > あらゆる種類のプロジェクトの設計状態・意思決定・進行をバージョン管理するCLIツール。人間とAIの両方が同じインターフェースで操作できる。

@@ -153,6 +153,7 @@ func (p *Projector) applyBranch(sqlTx *sql.Tx, entityID int64, stableID string, 
 	}
 	isMain := valBool(state, eavt.AttrBranchIsMain)
 	headDecision := valIntPtr(state, eavt.AttrBranchHeadDecision)
+	forkTxID := valIntPtr(state, eavt.AttrBranchForkTxID)
 
 	isMainInt := 0
 	if isMain {
@@ -160,12 +161,12 @@ func (p *Projector) applyBranch(sqlTx *sql.Tx, entityID int64, stableID string, 
 	}
 
 	_, err := sqlTx.Exec(`
-		INSERT INTO p_branches (entity_id, stable_id, project_id, name, head_decision_id, status, is_main)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO p_branches (entity_id, stable_id, project_id, name, head_decision_id, status, is_main, fork_tx_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(entity_id) DO UPDATE SET
 			name=excluded.name, head_decision_id=excluded.head_decision_id,
-			status=excluded.status, is_main=excluded.is_main
-	`, entityID, stableID, projectID, name, headDecision, status, isMainInt)
+			status=excluded.status, is_main=excluded.is_main, fork_tx_id=excluded.fork_tx_id
+	`, entityID, stableID, projectID, name, headDecision, status, isMainInt, forkTxID)
 	return err
 }
 

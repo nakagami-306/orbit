@@ -37,6 +37,7 @@ const (
 	AttrBranchHeadDecision = "branch/head_decision"
 	AttrBranchStatus       = "branch/status"
 	AttrBranchIsMain       = "branch/is_main"
+	AttrBranchForkTxID     = "branch/fork_tx_id"
 )
 
 // Thread attributes

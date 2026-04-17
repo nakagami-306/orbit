@@ -18,6 +18,7 @@ type Branch struct {
 	HeadDecisionID *int64
 	Status         string
 	IsMain         bool
+	ForkTxID       *int64
 }
 
 // BranchService handles branch operations.
@@ -51,6 +52,9 @@ func (s *BranchService) CreateBranch(ctx context.Context, projectEntityID, fromB
 		eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchProjectID, eavt.NewRef(projectEntityID), txID)
 		eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchStatus, eavt.NewEnum("active"), txID)
 		eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchIsMain, eavt.NewBool(false), txID)
+
+		// Record fork point tx_id for 3-way merge
+		eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchForkTxID, eavt.NewInt(txID), txID)
 
 		if headDecisionID.Valid {
 			eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(headDecisionID.Int64), txID)
@@ -108,7 +112,7 @@ func (s *BranchService) SwitchBranch(ctx context.Context, workspacePath string, 
 // ListBranches returns all branches for a project.
 func (s *BranchService) ListBranches(ctx context.Context, projectEntityID int64) ([]Branch, error) {
 	rows, err := s.DB.Conn().QueryContext(ctx, `
-		SELECT entity_id, stable_id, project_id, COALESCE(name,''), head_decision_id, status, is_main
+		SELECT entity_id, stable_id, project_id, COALESCE(name,''), head_decision_id, status, is_main, fork_tx_id
 		FROM p_branches WHERE project_id = ?
 	`, projectEntityID)
 	if err != nil {
@@ -119,13 +123,16 @@ func (s *BranchService) ListBranches(ctx context.Context, projectEntityID int64)
 	branches := make([]Branch, 0)
 	for rows.Next() {
 		var b Branch
-		var headID sql.NullInt64
+		var headID, forkTx sql.NullInt64
 		var isMain int
-		if err := rows.Scan(&b.EntityID, &b.StableID, &b.ProjectID, &b.Name, &headID, &b.Status, &isMain); err != nil {
+		if err := rows.Scan(&b.EntityID, &b.StableID, &b.ProjectID, &b.Name, &headID, &b.Status, &isMain, &forkTx); err != nil {
 			return nil, err
 		}
 		if headID.Valid {
 			b.HeadDecisionID = &headID.Int64
+		}
+		if forkTx.Valid {
+			b.ForkTxID = &forkTx.Int64
 		}
 		b.IsMain = isMain == 1
 		branches = append(branches, b)
@@ -201,63 +208,143 @@ func (s *BranchService) MergeBranch(ctx context.Context, sourceID, targetID, pro
 			eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet(parents), txID)
 		}
 
-		// Compare sections: find sections on source that differ from target
-		sourceRows, err := sqlTx.Query(`
-			SELECT s.entity_id, s.title, s.content
-			FROM p_sections s WHERE s.project_id = ? AND s.branch_id = ?
-		`, projectEntityID, sourceID)
-		if err != nil {
-			return err
-		}
+		// Get fork_tx_id for 3-way merge base
+		var forkTxID sql.NullInt64
+		sqlTx.QueryRow("SELECT fork_tx_id FROM p_branches WHERE entity_id = ?", sourceID).Scan(&forkTxID)
 
+		// Collect all section entity_ids from both branches
 		type secData struct {
 			EntityID int64
 			Title    string
 			Content  string
 		}
-		var sourceSections []secData
+		sectionMap := make(map[int64]bool)
+
+		sourceRows, err := sqlTx.Query(`
+			SELECT entity_id, title, COALESCE(content,'')
+			FROM p_sections WHERE project_id = ? AND branch_id = ?
+		`, projectEntityID, sourceID)
+		if err != nil {
+			return err
+		}
+		sourceSections := make(map[int64]secData)
 		for sourceRows.Next() {
 			var sd secData
 			sourceRows.Scan(&sd.EntityID, &sd.Title, &sd.Content)
-			sourceSections = append(sourceSections, sd)
+			sourceSections[sd.EntityID] = sd
+			sectionMap[sd.EntityID] = true
 		}
 		sourceRows.Close()
 
-		for _, ss := range sourceSections {
-			// Get target's version of this section
-			var targetContent string
-			err := sqlTx.QueryRow(
-				"SELECT COALESCE(content,'') FROM p_sections WHERE entity_id = ? AND branch_id = ?",
-				ss.EntityID, targetID,
-			).Scan(&targetContent)
+		targetRows, err := sqlTx.Query(`
+			SELECT entity_id, title, COALESCE(content,'')
+			FROM p_sections WHERE project_id = ? AND branch_id = ?
+		`, projectEntityID, targetID)
+		if err != nil {
+			return err
+		}
+		targetSections := make(map[int64]secData)
+		for targetRows.Next() {
+			var sd secData
+			targetRows.Scan(&sd.EntityID, &sd.Title, &sd.Content)
+			targetSections[sd.EntityID] = sd
+			sectionMap[sd.EntityID] = true
+		}
+		targetRows.Close()
 
+		// getBaseContent retrieves the section content at fork point
+		getBaseContent := func(sectionEntityID int64) string {
+			if !forkTxID.Valid {
+				return "" // no fork point recorded, treat base as empty
+			}
+			state, err := eavt.EntityStateAsOf(sqlTx, sectionEntityID, forkTxID.Int64)
 			if err != nil {
-				// Section exists on source but not target: auto-merge (add it)
-				sqlTx.Exec(`
-					INSERT OR IGNORE INTO p_sections (entity_id, branch_id, stable_id, project_id, title, content, position, is_stale)
-					SELECT entity_id, ?, stable_id, project_id, title, content, position, 0
-					FROM p_sections WHERE entity_id = ? AND branch_id = ?
-				`, targetID, ss.EntityID, sourceID)
+				return ""
+			}
+			if v, ok := state[eavt.AttrSectionContent]; ok {
+				s, _ := v.AsString()
+				return s
+			}
+			return ""
+		}
+
+		for secID := range sectionMap {
+			source, sourceExists := sourceSections[secID]
+			target, targetExists := targetSections[secID]
+			baseContent := getBaseContent(secID)
+
+			if sourceExists && !targetExists {
+				// Section only on source. If it existed at fork point, target deleted it → conflict.
+				// If it didn't exist at fork point, source added it → auto-merge (add to target).
+				if baseContent == "" {
+					// New section added on source branch → copy to target
+					sqlTx.Exec(`
+						INSERT OR IGNORE INTO p_sections (entity_id, branch_id, stable_id, project_id, title, content, position, is_stale)
+						SELECT entity_id, ?, stable_id, project_id, title, content, position, 0
+						FROM p_sections WHERE entity_id = ? AND branch_id = ?
+					`, targetID, secID, sourceID)
+				}
+				// If baseContent != "" it means target deleted it; skip (target's deletion wins when source unchanged,
+				// but if source changed it, that's a conflict — handled below)
+				if baseContent != "" && source.Content != baseContent {
+					// Source modified, target deleted → conflict
+					conflictStableID := eavt.NewStableID()
+					conflictID, _ := eavt.CreateEntity(sqlTx, conflictStableID, eavt.EntityMilestone, txID)
+					sqlTx.Exec(`
+						INSERT INTO p_conflicts (entity_id, stable_id, project_id, branch_id, section_id, field, base_value, merge_decision_id, status)
+						VALUES (?, ?, ?, ?, ?, 'content', ?, ?, 'unresolved')
+					`, conflictID, conflictStableID, projectEntityID, targetID, secID, baseContent, decisionEntityID)
+					sqlTx.Exec(`INSERT INTO p_conflict_sides (conflict_id, branch_id, value) VALUES (?, ?, ?)`,
+						conflictID, sourceID, source.Content)
+					sqlTx.Exec(`INSERT INTO p_conflict_sides (conflict_id, branch_id, value) VALUES (?, ?, ?)`,
+						conflictID, targetID, "") // target deleted
+					conflictCount++
+				}
 				continue
 			}
 
-			if targetContent == ss.Content {
-				continue // No change
+			if !sourceExists && targetExists {
+				// Section only on target — source deleted or never had it. Keep target as-is.
+				continue
 			}
 
-			// Both modified: create conflict
+			// Both exist
+			sourceContent := source.Content
+			targetContent := target.Content
+
+			if sourceContent == targetContent {
+				continue // identical, no action needed
+			}
+
+			sourceChanged := sourceContent != baseContent
+			targetChanged := targetContent != baseContent
+
+			if sourceChanged && !targetChanged {
+				// Only source modified → take source's version
+				sqlTx.Exec(`
+					UPDATE p_sections SET content = ?, title = ? WHERE entity_id = ? AND branch_id = ?
+				`, sourceContent, source.Title, secID, targetID)
+				continue
+			}
+
+			if !sourceChanged && targetChanged {
+				// Only target modified → keep target (no action)
+				continue
+			}
+
+			// Both modified with different content → real conflict
 			conflictStableID := eavt.NewStableID()
-			conflictID, _ := eavt.CreateEntity(sqlTx, conflictStableID, eavt.EntityMilestone, txID) // reuse entity creation
+			conflictID, _ := eavt.CreateEntity(sqlTx, conflictStableID, eavt.EntityMilestone, txID)
 
 			sqlTx.Exec(`
 				INSERT INTO p_conflicts (entity_id, stable_id, project_id, branch_id, section_id, field, base_value, merge_decision_id, status)
-				VALUES (?, ?, ?, ?, ?, 'content', '', ?, 'unresolved')
-			`, conflictID, conflictStableID, projectEntityID, targetID, ss.EntityID, decisionEntityID)
+				VALUES (?, ?, ?, ?, ?, 'content', ?, ?, 'unresolved')
+			`, conflictID, conflictStableID, projectEntityID, targetID, secID, baseContent, decisionEntityID)
 
 			sqlTx.Exec(`INSERT INTO p_conflict_sides (conflict_id, branch_id, value) VALUES (?, ?, ?)`,
 				conflictID, targetID, targetContent)
 			sqlTx.Exec(`INSERT INTO p_conflict_sides (conflict_id, branch_id, value) VALUES (?, ?, ?)`,
-				conflictID, sourceID, ss.Content)
+				conflictID, sourceID, sourceContent)
 
 			conflictCount++
 		}
