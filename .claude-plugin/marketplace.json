@@ -1,11 +1,17 @@
 {
   "name": "orbit",
-  "description": "Orbit plugin marketplace",
+  "owner": {
+    "name": "nakagami-306"
+  },
+  "metadata": {
+    "description": "Orbit project marketplace"
+  },
   "plugins": [
     {
       "name": "orbit",
       "description": "Orbit project management CLI integration for Claude Code. Teaches Claude when and how to use orbit commands for design state tracking, decision recording, and structured discussion.",
-      "path": "."
+      "source": ".",
+      "version": "0.3.0"
     }
   ]
 }
