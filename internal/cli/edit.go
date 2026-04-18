@@ -76,11 +76,11 @@ func newEditCmd(app *App) *cobra.Command {
 				if app.Format == "json" {
 					return json.NewEncoder(os.Stdout).Encode(map[string]any{
 						"action":      "created_section",
-						"section_id":  secSID[:8],
-						"decision_id": decSID[:8],
+						"section_id":  secSID,
+						"decision_id": decSID,
 					})
 				}
-				fmt.Printf("Created section \"State\" with Decision %s\n", decSID[:8])
+				fmt.Printf("Created section \"State\" with Decision %s\n", decSID)
 				return nil
 			}
 
@@ -143,10 +143,10 @@ func newEditCmd(app *App) *cobra.Command {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
 					"action":      "edited",
 					"section":     targetSection.Title,
-					"decision_id": decSID[:8],
+					"decision_id": decSID,
 				})
 			}
-			fmt.Printf("Edited section %q — Decision %s\n", targetSection.Title, decSID[:8])
+			fmt.Printf("Edited section %q — Decision %s\n", targetSection.Title, decSID)
 			return nil
 		},
 	}

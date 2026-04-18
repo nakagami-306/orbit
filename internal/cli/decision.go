@@ -67,7 +67,7 @@ func newDecisionLogCmd(app *App) *cobra.Command {
 				return nil
 			}
 			for _, e := range entries {
-				fmt.Printf("%s  %s  %s\n", e.StableID[:8], e.Instant[:19], e.Title)
+				fmt.Printf("%s  %s  %s\n", e.StableID, e.Instant[:19], e.Title)
 				if e.Rationale != "" {
 					fmt.Printf("          ↳ %s\n", e.Rationale)
 				}
@@ -148,7 +148,7 @@ func newDecisionShowCmd(app *App) *cobra.Command {
 				})
 			}
 
-			fmt.Printf("Decision: %s\n", stableID[:8])
+			fmt.Printf("Decision: %s\n", stableID)
 			fmt.Printf("Title:    %s\n", title)
 			fmt.Printf("When:     %s\n", instant[:19])
 			if author != "" {
@@ -167,7 +167,7 @@ func newDecisionShowCmd(app *App) *cobra.Command {
 					if c.Op == 0 {
 						op = "-"
 					}
-					fmt.Printf("  %s [%s] %s.%s\n", op, c.EntityStableID[:8], c.EntityType, c.Attribute)
+					fmt.Printf("  %s [%s] %s.%s\n", op, c.EntityStableID, c.EntityType, c.Attribute)
 				}
 			}
 			return nil

@@ -89,10 +89,10 @@ func newMilestoneSetCmd(app *App) *cobra.Command {
 
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "set", "milestone_id": stableID[:8], "title": title,
+					"action": "set", "milestone_id": stableID, "title": title,
 				})
 			}
-			fmt.Printf("Milestone %q set (%s)\n", title, stableID[:8])
+			fmt.Printf("Milestone %q set (%s)\n", title, stableID)
 			return nil
 		},
 	}
@@ -155,7 +155,7 @@ func newMilestoneListCmd(app *App) *cobra.Command {
 				if e.Instant != "" {
 					instant = e.Instant[:19]
 				}
-				fmt.Printf("%s  %s  %s\n", e.StableID[:8], instant, e.Title)
+				fmt.Printf("%s  %s  %s\n", e.StableID, instant, e.Title)
 			}
 			return nil
 		},

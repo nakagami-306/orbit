@@ -53,10 +53,10 @@ func newThreadCreateCmd(app *App) *cobra.Command {
 
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "created", "thread_id": stableID[:8], "title": title,
+					"action": "created", "thread_id": stableID, "title": title,
 				})
 			}
-			fmt.Printf("Created thread %q (%s)\n", title, stableID[:8])
+			fmt.Printf("Created thread %q (%s)\n", title, stableID)
 			return nil
 		},
 	}
@@ -93,7 +93,7 @@ func newThreadListCmd(app *App) *cobra.Command {
 				return nil
 			}
 			for _, t := range threads {
-				fmt.Printf("%s  [%s]  %s\n", t.StableID[:8], t.Status, t.Title)
+				fmt.Printf("%s  [%s]  %s\n", t.StableID, t.Status, t.Title)
 			}
 			return nil
 		},
@@ -241,10 +241,10 @@ func newThreadAddCmd(app *App) *cobra.Command {
 
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "added", "entry_id": stableID[:8], "type": entryType,
+					"action": "added", "entry_id": stableID, "type": entryType,
 				})
 			}
-			fmt.Printf("Added %s entry (%s)\n", entryType, stableID[:8])
+			fmt.Printf("Added %s entry (%s)\n", entryType, stableID)
 			return nil
 		},
 	}
@@ -389,10 +389,10 @@ func newDecideCmd(app *App) *cobra.Command {
 
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "decided", "decision_id": decSID[:8],
+					"action": "decided", "decision_id": decSID,
 				})
 			}
-			fmt.Printf("Thread decided — Decision %s\n", decSID[:8])
+			fmt.Printf("Thread decided — Decision %s\n", decSID)
 			return nil
 		},
 	}

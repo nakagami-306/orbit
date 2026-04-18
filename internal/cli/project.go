@@ -42,7 +42,7 @@ func newProjectListCmd(app *App) *cobra.Command {
 			}
 
 			for _, p := range projects {
-				fmt.Printf("%-20s  [%s]  %s\n", p.Name, p.Status, p.StableID[:8])
+				fmt.Printf("%-20s  [%s]  %s\n", p.Name, p.Status, p.StableID)
 			}
 			return nil
 		},

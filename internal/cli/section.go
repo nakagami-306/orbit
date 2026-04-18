@@ -90,11 +90,11 @@ func newSectionAddCmd(app *App) *cobra.Command {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
 					"action":      "added",
 					"section":     sectionTitle,
-					"section_id":  secSID[:8],
-					"decision_id": decSID[:8],
+					"section_id":  secSID,
+					"decision_id": decSID,
 				})
 			}
-			fmt.Printf("Added section %q (%s) — Decision %s\n", sectionTitle, secSID[:8], decSID[:8])
+			fmt.Printf("Added section %q (%s) — Decision %s\n", sectionTitle, secSID, decSID)
 			return nil
 		},
 	}
@@ -157,10 +157,10 @@ func newSectionRefAddCmd(app *App) *cobra.Command {
 					"action":       "ref_added",
 					"from_section": fromSec.Title,
 					"to_section":   toSec.Title,
-					"decision_id":  decSID[:8],
+					"decision_id":  decSID,
 				})
 			}
-			fmt.Printf("Added reference: %s → %s — Decision %s\n", fromSec.Title, toSec.Title, decSID[:8])
+			fmt.Printf("Added reference: %s → %s — Decision %s\n", fromSec.Title, toSec.Title, decSID)
 			return nil
 		},
 	}
@@ -204,10 +204,10 @@ func newSectionRefRemoveCmd(app *App) *cobra.Command {
 					"action":       "ref_removed",
 					"from_section": fromSec.Title,
 					"to_section":   toSec.Title,
-					"decision_id":  decSID[:8],
+					"decision_id":  decSID,
 				})
 			}
-			fmt.Printf("Removed reference: %s → %s — Decision %s\n", fromSec.Title, toSec.Title, decSID[:8])
+			fmt.Printf("Removed reference: %s → %s — Decision %s\n", fromSec.Title, toSec.Title, decSID)
 			return nil
 		},
 	}
@@ -252,7 +252,7 @@ func newSectionRemoveCmd(app *App) *cobra.Command {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
 					"action":      "removed",
 					"section":     sec.Title,
-					"decision_id": decSID[:8],
+					"decision_id": decSID,
 					"warnings":    warnings,
 				})
 			}
@@ -260,7 +260,7 @@ func newSectionRemoveCmd(app *App) *cobra.Command {
 			for _, w := range warnings {
 				fmt.Fprintf(os.Stderr, "warning: %s\n", w)
 			}
-			fmt.Printf("Removed section %q — Decision %s\n", sec.Title, decSID[:8])
+			fmt.Printf("Removed section %q — Decision %s\n", sec.Title, decSID)
 			return nil
 		},
 	}
@@ -327,7 +327,7 @@ func newSectionShowCmd(app *App) *cobra.Command {
 				fmt.Print(" [stale]")
 			}
 			fmt.Println()
-			fmt.Printf("ID: %s\n", detail.StableID[:8])
+			fmt.Printf("ID: %s\n", detail.StableID)
 			fmt.Println()
 
 			if detail.Content != "" {
@@ -338,7 +338,7 @@ func newSectionShowCmd(app *App) *cobra.Command {
 			if len(detail.RefsTo) > 0 {
 				fmt.Println("References →")
 				for _, r := range detail.RefsTo {
-					fmt.Printf("  • %s (%s)\n", r.Title, r.StableID[:8])
+					fmt.Printf("  • %s (%s)\n", r.Title, r.StableID)
 				}
 				fmt.Println()
 			}
@@ -346,7 +346,7 @@ func newSectionShowCmd(app *App) *cobra.Command {
 			if len(detail.RefsFrom) > 0 {
 				fmt.Println("Referenced by ←")
 				for _, r := range detail.RefsFrom {
-					fmt.Printf("  • %s (%s)\n", r.Title, r.StableID[:8])
+					fmt.Printf("  • %s (%s)\n", r.Title, r.StableID)
 				}
 				fmt.Println()
 			}

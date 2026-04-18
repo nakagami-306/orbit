@@ -109,7 +109,7 @@ func newInitCmd(app *App) *cobra.Command {
 					"action": "created", "project": name, "stable_id": projectStableID, "path": cwd,
 				})
 			}
-			fmt.Printf("Created project %q (%s)\n", name, projectStableID[:8])
+			fmt.Printf("Created project %q (%s)\n", name, projectStableID)
 			fmt.Printf("Initialized .orbit/ in %s\n", cwd)
 			return nil
 		},

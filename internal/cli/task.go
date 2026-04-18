@@ -72,10 +72,10 @@ func newTaskCreateCmd(app *App) *cobra.Command {
 
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "created", "task_id": stableID[:8], "title": title,
+					"action": "created", "task_id": stableID, "title": title,
 				})
 			}
-			fmt.Printf("Created task %q (%s)\n", title, stableID[:8])
+			fmt.Printf("Created task %q (%s)\n", title, stableID)
 			return nil
 		},
 	}
@@ -118,7 +118,7 @@ func newTaskListCmd(app *App) *cobra.Command {
 				if t.Assignee != "" {
 					assignee = fmt.Sprintf(" @%s", t.Assignee)
 				}
-				fmt.Printf("%s  [%s] [%s]  %s%s\n", t.StableID[:8], t.Status, t.Priority, t.Title, assignee)
+				fmt.Printf("%s  [%s] [%s]  %s%s\n", t.StableID, t.Status, t.Priority, t.Title, assignee)
 			}
 			return nil
 		},

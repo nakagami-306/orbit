@@ -162,10 +162,10 @@ func newRevertCmd(app *App) *cobra.Command {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
 					"action":          "reverted",
 					"reverted":        targetTitle,
-					"compensation_id": compensationStableID[:8],
+					"compensation_id": compensationStableID,
 				})
 			}
-			fmt.Printf("Reverted %q — Compensation Decision %s\n", targetTitle, compensationStableID[:8])
+			fmt.Printf("Reverted %q — Compensation Decision %s\n", targetTitle, compensationStableID)
 			return nil
 		},
 	}

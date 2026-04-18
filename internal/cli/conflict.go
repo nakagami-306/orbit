@@ -68,7 +68,7 @@ func newConflictListCmd(app *App) *cobra.Command {
 				return nil
 			}
 			for _, e := range entries {
-				fmt.Printf("%s  [%s]  %s.%s\n", e.StableID[:8], e.Status, e.Section, e.Field)
+				fmt.Printf("%s  [%s]  %s.%s\n", e.StableID, e.Status, e.Section, e.Field)
 			}
 			return nil
 		},
@@ -127,7 +127,7 @@ func newConflictShowCmd(app *App) *cobra.Command {
 				})
 			}
 
-			fmt.Printf("Conflict: %s [%s]\n", stableID[:8], status)
+			fmt.Printf("Conflict: %s [%s]\n", stableID, status)
 			fmt.Printf("Section:  %s.%s\n", sectionTitle, field)
 			if baseValue != "" {
 				fmt.Printf("Base:     %s\n", baseValue)
@@ -205,10 +205,10 @@ func newConflictResolveCmd(app *App) *cobra.Command {
 
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "resolved", "decision_id": decSID[:8],
+					"action": "resolved", "decision_id": decSID,
 				})
 			}
-			fmt.Printf("Conflict resolved — Decision %s\n", decSID[:8])
+			fmt.Printf("Conflict resolved — Decision %s\n", decSID)
 			return nil
 		},
 	}

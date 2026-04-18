@@ -74,7 +74,7 @@ func newSectionLogCmd(app *App) *cobra.Command {
 			}
 			fmt.Printf("Decisions that modified section %q:\n\n", sectionName)
 			for _, e := range entries {
-				fmt.Printf("  %s  %s  %s\n", e.StableID[:8], e.Instant[:19], e.Title)
+				fmt.Printf("  %s  %s  %s\n", e.StableID, e.Instant[:19], e.Title)
 				if e.Rationale != "" {
 					fmt.Printf("            ↳ %s\n", e.Rationale)
 				}

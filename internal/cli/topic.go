@@ -52,10 +52,10 @@ func newTopicCreateCmd(app *App) *cobra.Command {
 
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "created", "topic_id": stableID[:8], "title": title,
+					"action": "created", "topic_id": stableID, "title": title,
 				})
 			}
-			fmt.Printf("Created topic %q (%s)\n", title, stableID[:8])
+			fmt.Printf("Created topic %q (%s)\n", title, stableID)
 			return nil
 		},
 	}
@@ -92,7 +92,7 @@ func newTopicListCmd(app *App) *cobra.Command {
 				return nil
 			}
 			for _, t := range topics {
-				fmt.Printf("%s  [%s]  %s\n", t.StableID[:8], t.Status, t.Title)
+				fmt.Printf("%s  [%s]  %s\n", t.StableID, t.Status, t.Title)
 			}
 			return nil
 		},
@@ -145,7 +145,7 @@ func newTopicShowCmd(app *App) *cobra.Command {
 			} else {
 				fmt.Println("Linked threads:")
 				for _, t := range threads {
-					fmt.Printf("  %s  [%s]  %s\n", t.StableID[:8], t.Status, t.Title)
+					fmt.Printf("  %s  [%s]  %s\n", t.StableID, t.Status, t.Title)
 				}
 			}
 			return nil

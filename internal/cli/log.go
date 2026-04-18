@@ -72,7 +72,7 @@ func newLogCmd(app *App) *cobra.Command {
 				if len(instant) > 19 {
 					instant = instant[:19]
 				}
-				fmt.Printf("%s  %-15s  %s  %s\n", instant, e.Project, e.StableID[:8], e.Title)
+				fmt.Printf("%s  %-15s  %s  %s\n", instant, e.Project, e.StableID, e.Title)
 			}
 			return nil
 		},

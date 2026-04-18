@@ -49,15 +49,15 @@ func newBranchCreateCmd(app *App) *cobra.Command {
 
 			displayName := name
 			if displayName == "" {
-				displayName = stableID[:8]
+				displayName = stableID
 			}
 
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "created", "branch_id": stableID[:8], "name": name,
+					"action": "created", "branch_id": stableID, "name": name,
 				})
 			}
-			fmt.Printf("Created branch %s (%s)\n", displayName, stableID[:8])
+			fmt.Printf("Created branch %s (%s)\n", displayName, stableID)
 			return nil
 		},
 	}
@@ -94,7 +94,7 @@ func newBranchListCmd(app *App) *cobra.Command {
 				}
 				name := b.Name
 				if name == "" {
-					name = b.StableID[:8]
+					name = b.StableID
 				}
 				fmt.Printf(" %s %-20s [%s]", marker, name, b.Status)
 				if b.IsMain {
@@ -235,10 +235,10 @@ func newBranchMergeCmd(app *App) *cobra.Command {
 
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "merged", "decision_id": decSID[:8], "conflicts": conflicts,
+					"action": "merged", "decision_id": decSID, "conflicts": conflicts,
 				})
 			}
-			fmt.Printf("Merged — Decision %s\n", decSID[:8])
+			fmt.Printf("Merged — Decision %s\n", decSID)
 			if conflicts > 0 {
 				fmt.Printf("⚠ %d conflict(s). Use `orbit conflict list` to view.\n", conflicts)
 			}
