@@ -91,7 +91,7 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision, on
       }
 
       const parents = parentIds.get(decision.id) || []
-      const parentTitles = parents.map(pid => decisionTitleMap.get(pid) || pid.slice(0, 8))
+      const parentTitles = parents.map(pid => decisionTitleMap.get(pid) || pid)
 
       return {
         decision,

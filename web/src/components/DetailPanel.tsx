@@ -86,7 +86,7 @@ function DecisionContent({ projectId, decisionId, onOpenThread }: {
         <span>{formatTimeFull(detail.instant)}</span>
       </div>
       <div style={{ fontSize: '0.7rem', color: '#555', marginBottom: '1rem', fontFamily: 'monospace' }}>
-        {detail.id.slice(0, 8)}
+        {detail.id}
       </div>
 
       {detail.rationale && (
@@ -224,7 +224,7 @@ function ThreadContent({ projectId, threadId }: { projectId: string; threadId: s
       </h4>
       <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <StatusBadge status={detail.status} color={statusColor} />
-        <span style={{ fontSize: '0.7rem', color: '#555', fontFamily: 'monospace' }}>{detail.id.slice(0, 8)}</span>
+        <span style={{ fontSize: '0.7rem', color: '#555', fontFamily: 'monospace' }}>{detail.id}</span>
       </div>
 
       {detail.question && (
@@ -305,7 +305,7 @@ function TopicContent({ projectId, topicId, onOpenThread }: {
       </h4>
       <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <StatusBadge status={detail.status} color={statusColor} />
-        <span style={{ fontSize: '0.7rem', color: '#555', fontFamily: 'monospace' }}>{detail.id.slice(0, 8)}</span>
+        <span style={{ fontSize: '0.7rem', color: '#555', fontFamily: 'monospace' }}>{detail.id}</span>
       </div>
 
       {detail.description && (

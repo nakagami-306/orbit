@@ -215,7 +215,7 @@ function TaskListInline({ tasks }: { tasks: EntityNode[] }) {
               {items.map(task => (
                 <div key={task.id} style={{ padding: '10px 14px', background: '#1e1e1e', borderRadius: '6px', border: '1px solid #333', borderLeft: `3px solid ${statusColors[status] || '#888'}` }}>
                   <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#e0e0e0' }}>{task.title}</div>
-                  <div style={{ fontSize: '0.7rem', color: '#555', marginTop: '4px', fontFamily: 'monospace' }}>{task.id.slice(0, 8)}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#555', marginTop: '4px', fontFamily: 'monospace' }}>{task.id}</div>
                 </div>
               ))}
             </div>

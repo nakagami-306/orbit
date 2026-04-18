@@ -112,7 +112,7 @@ export default function StateView({ sections }: Props) {
                   borderTop: '1px solid #2a2a2a',
                 }}>
                   <div style={{ fontSize: '0.7rem', color: '#555', marginBottom: '4px', fontFamily: 'monospace' }}>
-                    {section.id.slice(0, 8)}
+                    {section.id}
                   </div>
                   {section.instant && (
                     <div style={{ fontSize: '0.75rem', color: '#888' }}>
