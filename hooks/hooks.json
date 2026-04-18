@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/orbit-session-start.py\""
+            "command": "PYTHONIOENCODING=utf-8 python -c \"import json,os;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins']['orbit@orbit'][0]['installPath'];exec(open(os.path.join(p,'hooks','orbit-session-start.py'),encoding='utf-8').read())\""
           }
         ]
       }
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/orbit-decide-guard.py\""
+            "command": "PYTHONIOENCODING=utf-8 python -c \"import json,os,sys;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins']['orbit@orbit'][0]['installPath'];exec(open(os.path.join(p,'hooks','orbit-decide-guard.py'),encoding='utf-8').read())\""
           }
         ]
       }
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/orbit-pre-compact.py\""
+            "command": "PYTHONIOENCODING=utf-8 python -c \"import json,os;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins']['orbit@orbit'][0]['installPath'];exec(open(os.path.join(p,'hooks','orbit-pre-compact.py'),encoding='utf-8').read())\""
           }
         ]
       }
