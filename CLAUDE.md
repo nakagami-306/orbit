@@ -126,6 +126,16 @@ func setupTestDB(t *testing.T) *db.DB {
 2. チャットで議論しながら thread にエントリを記録する
 3. 方針が決まったら `orbit decide` で収束させ、**必ず Section を更新する**
 
+## Orbit Plugin（Claude Code統合）
+
+このリポジトリは `.claude-plugin/` にClaude Code Pluginを同梱している。セッション起動時に以下で有効化する:
+
+```bash
+claude --plugin-dir .
+```
+
+Plugin内のファイル（skills/, hooks/等）を変更した場合はセッション内で `/reload-plugins` を実行して反映する。
+
 ## 設計ドキュメント
 
 詳細な設計仕様は `C:\Users\seito\Desktop\manager\` を参照:
