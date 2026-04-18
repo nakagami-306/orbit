@@ -11,7 +11,7 @@ interface Props {
   isLast: boolean
 }
 
-function TimelineNode({ item, isSelected, onClick, onClickThread, isFirst, isLast }: Props) {
+function TimelineNode({ item, isSelected, onClick, onClickThread, isFirst: _isFirst, isLast }: Props) {
   const {
     decision, relatedThreads, relatedTasks, relatedSections,
     milestone, sourceThread, parentCount, isRoot, parentTitles, childCount,
