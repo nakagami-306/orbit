@@ -128,13 +128,9 @@ func setupTestDB(t *testing.T) *db.DB {
 
 ## Orbit Plugin（Claude Code統合）
 
-このリポジトリは `.claude-plugin/` にClaude Code Pluginを同梱している。セッション起動時に以下で有効化する:
+このリポジトリはClaude Code Pluginを同梱している。`skills/`, `hooks/`, `references/` はルート直下、`plugin.json`, `marketplace.json` は `.claude-plugin/` に配置。marketplace経由でインストールして使用する。
 
-```bash
-claude --plugin-dir .
-```
-
-Plugin内のファイル（skills/, hooks/等）を変更した場合はセッション内で `/reload-plugins` を実行して反映する。
+Plugin内のファイルを変更した場合はセッション内で `/reload-plugins` を実行して反映する。
 
 ## 設計ドキュメント
 
