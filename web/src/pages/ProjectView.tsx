@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { fetchJSON, type DAGResponse, type ProjectDetail, type EntityNode, type BranchInfo } from '../api/client'
+import { fetchJSON, type DAGResponse, type ProjectDetail, type EntityNode, type BranchInfo, type TopicSummary } from '../api/client'
 import Timeline from '../components/Timeline'
 import DetailPanel, { type PanelTarget } from '../components/DetailPanel'
 import StateView from '../components/StateView'
@@ -14,6 +14,7 @@ export default function ProjectView() {
   const [dag, setDag] = useState<DAGResponse | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('timeline')
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null)
+  const [topics, setTopics] = useState<TopicSummary[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string>('')
   const [error, setError] = useState('')
 
@@ -30,6 +31,9 @@ export default function ProjectView() {
     fetchJSON<ProjectDetail>(`/api/projects/${id}`)
       .then(setProject)
       .catch(e => setError(e.message))
+    fetchJSON<TopicSummary[]>(`/api/projects/${id}/topics`)
+      .then(setTopics)
+      .catch(() => setTopics([]))
     loadDAG()
   }, [id, loadDAG])
 
@@ -42,6 +46,10 @@ export default function ProjectView() {
 
   const selectThread = useCallback((threadId: string) => {
     setPanelTarget({ kind: 'thread', id: threadId })
+  }, [])
+
+  const selectTopic = useCallback((topicId: string) => {
+    setPanelTarget({ kind: 'topic', id: topicId })
   }, [])
 
   const handleBranchChange = useCallback((branch: string) => {
@@ -153,7 +161,13 @@ export default function ProjectView() {
           )}
           {activeTab === 'state' && dag && <StateView sections={dag.sections || []} />}
           {activeTab === 'threads' && dag && (
-            <ThreadList threads={dag.threads || []} onSelectThread={selectThread} selectedThreadId={panelTarget?.kind === 'thread' ? panelTarget.id : null} />
+            <ThreadList
+              threads={dag.threads || []}
+              topics={topics}
+              onSelectThread={selectThread}
+              onSelectTopic={selectTopic}
+              selectedThreadId={panelTarget?.kind === 'thread' ? panelTarget.id : null}
+            />
           )}
           {activeTab === 'tasks' && dag && <TaskListInline tasks={dag.tasks || []} />}
           {!dag && <div style={{ padding: '2rem', color: '#888', textAlign: 'center' }}>Loading...</div>}

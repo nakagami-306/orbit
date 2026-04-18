@@ -125,6 +125,22 @@ export interface ThreadDetail {
   entries: ThreadEntry[]
 }
 
+export interface TopicSummary {
+  id: string
+  title: string
+  description: string
+  status: string
+  threadIds: string[]
+}
+
+export interface TopicDetail {
+  id: string
+  title: string
+  description: string
+  status: string
+  threads: { id: string; title: string; question: string; status: string }[]
+}
+
 export interface Task {
   id: string
   title: string

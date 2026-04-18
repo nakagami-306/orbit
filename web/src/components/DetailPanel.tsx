@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { fetchJSON, type DecisionDetail, type ThreadDetail } from '../api/client'
+import { fetchJSON, type DecisionDetail, type ThreadDetail, type TopicDetail } from '../api/client'
 import { formatTimeFull } from '../utils/time'
 
 export type PanelTarget =
   | { kind: 'decision'; id: string }
   | { kind: 'thread'; id: string }
+  | { kind: 'topic'; id: string }
 
 interface Props {
   projectId: string
@@ -26,8 +27,11 @@ export default function DetailPanel({ projectId, target, onClose, onOpenThread }
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h3 style={{ margin: 0, fontSize: '0.85rem', color: target.kind === 'thread' ? '#22c55e' : '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {target.kind === 'decision' ? 'Decision Detail' : 'Thread Detail'}
+        <h3 style={{
+          margin: 0, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em',
+          color: target.kind === 'thread' ? '#22c55e' : target.kind === 'topic' ? '#a855f7' : '#888',
+        }}>
+          {target.kind === 'decision' ? 'Decision Detail' : target.kind === 'thread' ? 'Thread Detail' : 'Topic Detail'}
         </h3>
         <button onClick={onClose} style={{
           background: '#333', border: 'none', color: '#888', cursor: 'pointer',
@@ -40,10 +44,9 @@ export default function DetailPanel({ projectId, target, onClose, onOpenThread }
         </button>
       </div>
 
-      {target.kind === 'decision'
-        ? <DecisionContent projectId={projectId} decisionId={target.id} onOpenThread={onOpenThread} />
-        : <ThreadContent projectId={projectId} threadId={target.id} />
-      }
+      {target.kind === 'decision' && <DecisionContent projectId={projectId} decisionId={target.id} onOpenThread={onOpenThread} />}
+      {target.kind === 'thread' && <ThreadContent projectId={projectId} threadId={target.id} />}
+      {target.kind === 'topic' && <TopicContent projectId={projectId} topicId={target.id} onOpenThread={onOpenThread} />}
     </div>
   )
 }
@@ -262,6 +265,82 @@ function ThreadContent({ projectId, threadId }: { projectId: string; threadId: s
                 }}>
                   {entry.isRetracted ? <span style={{ color: '#666', fontStyle: 'italic' }}>(retracted)</span> : entry.content}
                 </div>
+              </div>
+            )
+          })}
+        </div>
+      </InfoSection>
+    </>
+  )
+}
+
+// --- Topic Content ---
+
+function TopicContent({ projectId, topicId, onOpenThread }: {
+  projectId: string; topicId: string; onOpenThread?: (id: string) => void
+}) {
+  const [detail, setDetail] = useState<TopicDetail | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setError('')
+    setLoading(true)
+    fetchJSON<TopicDetail>(`/api/projects/${projectId}/topics/${topicId}`)
+      .then(setDetail)
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [projectId, topicId])
+
+  if (loading) return <div style={{ color: '#888', fontSize: '0.85rem' }}>Loading...</div>
+  if (error) return <div style={{ color: '#f66', fontSize: '0.85rem' }}>Error: {error}</div>
+  if (!detail) return null
+
+  const statusColor = detail.status === 'open' ? '#a855f7' : '#666'
+
+  return (
+    <>
+      <h4 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem', lineHeight: 1.3, color: '#e0e0e0' }}>
+        {detail.title}
+      </h4>
+      <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <StatusBadge status={detail.status} color={statusColor} />
+        <span style={{ fontSize: '0.7rem', color: '#555', fontFamily: 'monospace' }}>{detail.id.slice(0, 8)}</span>
+      </div>
+
+      {detail.description && (
+        <InfoSection title="Description">
+          <p style={{ margin: 0, fontSize: '0.85rem', color: '#ccc', lineHeight: 1.5 }}>
+            {detail.description}
+          </p>
+        </InfoSection>
+      )}
+
+      <InfoSection title={`Threads (${detail.threads.length})`}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {detail.threads.map(t => {
+            const color = t.status === 'open' ? '#22c55e' : t.status === 'decided' ? '#16a34a' : '#888'
+            return (
+              <div
+                key={t.id}
+                onClick={() => onOpenThread?.(t.id)}
+                style={{
+                  padding: '8px 10px', background: '#252525', borderRadius: '4px',
+                  borderLeft: `3px solid ${color}`,
+                  cursor: onOpenThread ? 'pointer' : 'default',
+                }}
+                onMouseEnter={e => { if (onOpenThread) e.currentTarget.style.background = '#2a2a2a' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#252525' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#e0e0e0' }}>{t.title}</span>
+                  <StatusBadge status={t.status} color={color} />
+                </div>
+                {t.question && (
+                  <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '4px', fontStyle: 'italic' }}>
+                    {t.question.length > 80 ? t.question.slice(0, 80) + '...' : t.question}
+                  </div>
+                )}
               </div>
             )
           })}
