@@ -891,6 +891,106 @@ func (s *Server) handleListMilestones(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// --- Topics ---
+
+func (s *Server) handleListTopics(w http.ResponseWriter, r *http.Request) {
+	projectID, err := s.resolveProjectID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	topics, err := s.topics.ListTopics(r.Context(), projectID, "")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	type topicResp struct {
+		ID          string   `json:"id"`
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		Status      string   `json:"status"`
+		ThreadIDs   []string `json:"threadIds"`
+	}
+
+	conn := s.db.Conn()
+	result := make([]topicResp, len(topics))
+	for i, t := range topics {
+		resp := topicResp{
+			ID:          t.StableID,
+			Title:       t.Title,
+			Description: t.Description,
+			Status:      t.Status,
+			ThreadIDs:   make([]string, 0),
+		}
+
+		// Get linked thread stable IDs
+		rows, err := conn.Query(`
+			SELECT e.stable_id
+			FROM topic_threads tt
+			JOIN entities e ON tt.thread_id = e.id
+			WHERE tt.topic_id = ?
+		`, t.EntityID)
+		if err == nil {
+			for rows.Next() {
+				var sid string
+				rows.Scan(&sid)
+				resp.ThreadIDs = append(resp.ThreadIDs, sid)
+			}
+			rows.Close()
+		}
+
+		result[i] = resp
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleGetTopic(w http.ResponseWriter, r *http.Request) {
+	projectID, err := s.resolveProjectID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	topicPrefix := r.PathValue("tid")
+	topic, err := s.topics.FindTopic(r.Context(), projectID, topicPrefix)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "topic not found")
+		return
+	}
+
+	threads, err := s.topics.GetTopicThreads(r.Context(), topic.EntityID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	type threadRef struct {
+		ID       string `json:"id"`
+		Title    string `json:"title"`
+		Question string `json:"question"`
+		Status   string `json:"status"`
+	}
+	threadList := make([]threadRef, len(threads))
+	for i, t := range threads {
+		threadList[i] = threadRef{
+			ID:       t.StableID,
+			Title:    t.Title,
+			Question: t.Question,
+			Status:   t.Status,
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":          topic.StableID,
+		"title":       topic.Title,
+		"description": topic.Description,
+		"status":      topic.Status,
+		"threads":     threadList,
+	})
+}
+
 // --- Conflicts ---
 
 func (s *Server) handleListConflicts(w http.ResponseWriter, r *http.Request) {

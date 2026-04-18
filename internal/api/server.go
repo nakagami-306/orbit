@@ -27,6 +27,7 @@ type Server struct {
 	threads  *domain.ThreadService
 	tasks    *domain.TaskService
 	branches *domain.BranchService
+	topics   *domain.TopicService
 	mux      *http.ServeMux
 	server   *http.Server
 	addr     string
@@ -47,6 +48,7 @@ func NewServer(addr string) (*Server, error) {
 		threads:  &domain.ThreadService{DB: d, Projector: proj},
 		tasks:    &domain.TaskService{DB: d, Projector: proj},
 		branches: &domain.BranchService{DB: d, Projector: proj},
+		topics:   &domain.TopicService{DB: d, Projector: proj},
 		addr:     addr,
 	}
 
@@ -113,6 +115,10 @@ func (s *Server) registerRoutes() {
 
 	// Milestones
 	s.mux.HandleFunc("GET /api/projects/{id}/milestones", s.handleListMilestones)
+
+	// Topics
+	s.mux.HandleFunc("GET /api/projects/{id}/topics", s.handleListTopics)
+	s.mux.HandleFunc("GET /api/projects/{id}/topics/{tid}", s.handleGetTopic)
 
 	// Conflicts
 	s.mux.HandleFunc("GET /api/projects/{id}/conflicts", s.handleListConflicts)
