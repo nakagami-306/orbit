@@ -4,18 +4,17 @@ import { formatTimeFull } from '../utils/time'
 
 interface Props {
   projectId: string
-  decisionId: string | null
+  decisionId: string
   onClose: () => void
 }
 
-export default function SidePanel({ projectId, decisionId, onClose }: Props) {
+export default function DetailPanel({ projectId, decisionId, onClose }: Props) {
   const [detail, setDetail] = useState<DecisionDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [expandedChange, setExpandedChange] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!decisionId) { setDetail(null); return }
     setError('')
     setLoading(true)
     setExpandedChange(null)
@@ -25,8 +24,6 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
       .finally(() => setLoading(false))
   }, [projectId, decisionId])
 
-  if (!decisionId) return null
-
   return (
     <div style={{
       width: '400px',
@@ -35,28 +32,38 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
       padding: '1rem',
       overflow: 'auto',
       flexShrink: 0,
+      height: '100%',
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h3 style={{ margin: 0, fontSize: '1rem' }}>Decision</h3>
+        <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Decision Detail
+        </h3>
         <button onClick={onClose} style={{
           background: '#333', border: 'none', color: '#888', cursor: 'pointer',
-          fontSize: '0.8rem', padding: '4px 8px', borderRadius: '4px',
-        }}>ESC</button>
+          fontSize: '0.75rem', padding: '4px 8px', borderRadius: '4px',
+        }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#444' }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#333' }}
+        >
+          ESC
+        </button>
       </div>
 
-      {loading && <div style={{ color: '#888' }}>Loading...</div>}
-      {error && <div style={{ color: '#f66' }}>Error: {error}</div>}
+      {loading && <div style={{ color: '#888', fontSize: '0.85rem' }}>Loading...</div>}
+      {error && <div style={{ color: '#f66', fontSize: '0.85rem' }}>Error: {error}</div>}
 
       {detail && (
         <>
           {/* Title */}
-          <h4 style={{ margin: '0 0 0.5rem', fontSize: '1rem', lineHeight: 1.3 }}>{detail.title}</h4>
+          <h4 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem', lineHeight: 1.3, color: '#e0e0e0' }}>
+            {detail.title}
+          </h4>
 
           {/* Meta */}
-          <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+          <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '0.5rem', display: 'flex', gap: '6px' }}>
             <span>{detail.author}</span>
-            <span>·</span>
+            <span style={{ color: '#555' }}>·</span>
             <span>{formatTimeFull(detail.instant)}</span>
           </div>
 
@@ -67,39 +74,43 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
 
           {/* Rationale */}
           {detail.rationale && (
-            <Section title="Rationale">
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#ccc', lineHeight: 1.5 }}>{detail.rationale}</p>
-            </Section>
+            <InfoSection title="Rationale">
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#ccc', lineHeight: 1.5 }}>
+                {detail.rationale}
+              </p>
+            </InfoSection>
           )}
 
           {/* Context */}
           {detail.context && (
-            <Section title="Context">
-              <p style={{ margin: 0, fontSize: '0.85rem', color: '#ccc', lineHeight: 1.5 }}>{detail.context}</p>
-            </Section>
+            <InfoSection title="Context">
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#ccc', lineHeight: 1.5 }}>
+                {detail.context}
+              </p>
+            </InfoSection>
           )}
 
           {/* Source Thread */}
           {detail.sourceThread && (
-            <Section title="Source Thread">
+            <InfoSection title="Source Thread">
               <div style={{
                 fontSize: '0.85rem',
-                padding: '6px 10px',
+                padding: '8px 10px',
                 background: '#252525',
                 borderRadius: '4px',
-                borderLeft: '3px solid #4a9',
+                borderLeft: '3px solid #22c55e',
               }}>
-                <div>{detail.sourceThread.title}</div>
+                <div style={{ color: '#e0e0e0' }}>{detail.sourceThread.title}</div>
                 <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '2px' }}>
-                  {detail.sourceThread.status}
+                  <ThreadStatusBadge status={detail.sourceThread.status} />
                 </div>
               </div>
-            </Section>
+            </InfoSection>
           )}
 
           {/* Changes */}
           {detail.changes.length > 0 && (
-            <Section title={`Changes (${detail.changes.length})`}>
+            <InfoSection title={`Changes (${detail.changes.length})`}>
               {detail.changes
                 .filter(c => c.attribute === 'section/content' || c.attribute === 'section/title')
                 .map((c, i) => {
@@ -125,6 +136,8 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
                           justifyContent: 'space-between',
                           alignItems: 'center',
                         }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#252525' }}
                       >
                         <span>
                           <span style={{ color: '#888' }}>{c.attribute.split('/').pop()}</span>
@@ -132,7 +145,6 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
                         <span style={{ fontSize: '0.65rem', color }}>{label}</span>
                       </div>
 
-                      {/* Expanded diff view */}
                       {isExpanded && (isModify || isAdd || isDel) && (
                         <div style={{
                           fontSize: '0.75rem',
@@ -151,7 +163,7 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
                               maxHeight: '200px',
                               overflow: 'auto',
                             }}>
-                              <span style={{ color: '#f44', marginRight: '6px' }}>−</span>
+                              <span style={{ color: '#f44', marginRight: '6px' }}>-</span>
                               {truncate(c.before, 500)}
                             </div>
                           )}
@@ -175,7 +187,7 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
                   )
                 })}
 
-              {/* Non-content changes (position, refs, etc.) */}
+              {/* Non-content changes */}
               {detail.changes
                 .filter(c => c.attribute !== 'section/content' && c.attribute !== 'section/title')
                 .map((c, i) => (
@@ -187,27 +199,28 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
                     {c.entityType}/{c.attribute.split('/').pop()}
                   </div>
                 ))}
-            </Section>
+            </InfoSection>
           )}
 
           {/* Related Tasks */}
           {detail.relatedTasks.length > 0 && (
-            <Section title="Related Tasks">
+            <InfoSection title="Related Tasks">
               {detail.relatedTasks.map(t => (
                 <div key={t.id} style={{
                   fontSize: '0.85rem',
-                  padding: '4px 10px',
+                  padding: '6px 10px',
                   margin: '4px 0',
                   background: '#252525',
                   borderRadius: '4px',
                   display: 'flex',
                   justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}>
-                  <span>{t.title}</span>
-                  <StatusBadge status={t.status} />
+                  <span style={{ color: '#ccc' }}>{t.title}</span>
+                  <TaskStatusBadge status={t.status} />
                 </div>
               ))}
-            </Section>
+            </InfoSection>
           )}
         </>
       )}
@@ -215,10 +228,16 @@ export default function SidePanel({ projectId, decisionId, onClose }: Props) {
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function InfoSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: '1rem' }}>
-      <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <div style={{
+        fontSize: '0.7rem',
+        color: '#666',
+        marginBottom: '6px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+      }}>
         {title}
       </div>
       {children}
@@ -226,7 +245,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
+function TaskStatusBadge({ status }: { status: string }) {
   const colors: Record<string, { bg: string; fg: string }> = {
     todo: { bg: '#333', fg: '#aaa' },
     'in-progress': { bg: '#2a2a1a', fg: '#fa4' },
@@ -241,6 +260,25 @@ function StatusBadge({ status }: { status: string }) {
       borderRadius: '3px',
       background: c.bg,
       color: c.fg,
+    }}>
+      {status}
+    </span>
+  )
+}
+
+function ThreadStatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    open: '#22c55e',
+    decided: '#16a34a',
+    closed: '#888',
+  }
+  return (
+    <span style={{
+      fontSize: '0.65rem',
+      padding: '1px 6px',
+      borderRadius: '3px',
+      background: '#252525',
+      color: colors[status] || '#888',
     }}>
       {status}
     </span>
