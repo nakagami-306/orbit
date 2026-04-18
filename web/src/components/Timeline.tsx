@@ -6,6 +6,7 @@ interface Props {
   dag: DAGResponse
   selectedDecisionId: string | null
   onSelectDecision: (id: string | null) => void
+  onSelectThread?: (threadId: string) => void
 }
 
 export interface ProcessedDecision {
@@ -21,7 +22,7 @@ export interface ProcessedDecision {
   childCount: number
 }
 
-export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: Props) {
+export default function Timeline({ dag, selectedDecisionId, onSelectDecision, onSelectThread }: Props) {
   const [sortNewestFirst, setSortNewestFirst] = useState(true)
 
   const processed = useMemo(() => {
@@ -196,6 +197,7 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
                 selectedDecisionId === item.decision.id ? null : item.decision.id
               )
             }}
+            onClickThread={onSelectThread}
             isFirst={idx === 0}
             isLast={idx === processed.length - 1}
           />

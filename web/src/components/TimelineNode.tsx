@@ -6,11 +6,12 @@ interface Props {
   item: ProcessedDecision
   isSelected: boolean
   onClick: () => void
+  onClickThread?: (threadId: string) => void
   isFirst: boolean
   isLast: boolean
 }
 
-function TimelineNode({ item, isSelected, onClick, isFirst, isLast }: Props) {
+function TimelineNode({ item, isSelected, onClick, onClickThread, isFirst, isLast }: Props) {
   const {
     decision, relatedThreads, relatedTasks, relatedSections,
     milestone, sourceThread, parentCount, isRoot, parentTitles, childCount,
@@ -147,6 +148,7 @@ function TimelineNode({ item, isSelected, onClick, isFirst, isLast }: Props) {
                 title={sourceThread.title}
                 status={sourceThread.status}
                 direction="in"
+                onClick={onClickThread ? (e) => { e.stopPropagation(); onClickThread(sourceThread.id) } : undefined}
               />
             )}
 
@@ -160,6 +162,7 @@ function TimelineNode({ item, isSelected, onClick, isFirst, isLast }: Props) {
                 label="THREAD"
                 title={t.title}
                 status={t.status}
+                onClick={onClickThread ? (e) => { e.stopPropagation(); onClickThread(t.id) } : undefined}
               />
             ))}
 
@@ -197,7 +200,7 @@ function TimelineNode({ item, isSelected, onClick, isFirst, isLast }: Props) {
   )
 }
 
-function EntityChip({ color, bg, border, label, title, status, direction }: {
+function EntityChip({ color, bg, border, label, title, status, direction, onClick }: {
   color: string
   bg: string
   border: string
@@ -205,11 +208,13 @@ function EntityChip({ color, bg, border, label, title, status, direction }: {
   title: string
   status?: string
   direction?: 'in' | 'out'
+  onClick?: (e: React.MouseEvent) => void
 }) {
   const arrow = direction === 'in' ? '\u2190' : direction === 'out' ? '\u2192' : ''
 
   return (
-    <div style={{
+    <div onClick={onClick} style={{
+      cursor: onClick ? 'pointer' : 'default',
       display: 'flex',
       alignItems: 'center',
       gap: '6px',

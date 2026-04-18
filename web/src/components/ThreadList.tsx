@@ -5,9 +5,11 @@ type FilterStatus = 'all' | 'open' | 'decided' | 'closed'
 
 interface Props {
   threads: EntityNode[]
+  onSelectThread?: (threadId: string) => void
+  selectedThreadId?: string | null
 }
 
-export default function ThreadList({ threads }: Props) {
+export default function ThreadList({ threads, onSelectThread, selectedThreadId }: Props) {
   const [filter, setFilter] = useState<FilterStatus>('all')
 
   const filtered = filter === 'all'
@@ -88,26 +90,33 @@ export default function ThreadList({ threads }: Props) {
               ? '#16a34a'
               : '#888'
 
+          const isSelected = selectedThreadId === thread.id
           return (
             <div
               key={thread.id}
+              onClick={() => onSelectThread?.(thread.id)}
               style={{
                 padding: '12px 14px',
-                background: '#1e1e1e',
+                background: isSelected ? '#141c28' : '#1e1e1e',
                 borderRadius: '8px',
-                border: '1px solid #333',
+                border: isSelected ? '1px solid #4a9eff' : '1px solid #333',
                 borderLeft: `3px solid ${statusColor}`,
-                transition: 'border-color 0.15s',
+                transition: 'all 0.15s',
+                cursor: onSelectThread ? 'pointer' : 'default',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.borderRightColor = '#555'
-                e.currentTarget.style.borderTopColor = '#555'
-                e.currentTarget.style.borderBottomColor = '#555'
+                if (!isSelected) {
+                  e.currentTarget.style.borderRightColor = '#555'
+                  e.currentTarget.style.borderTopColor = '#555'
+                  e.currentTarget.style.borderBottomColor = '#555'
+                }
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.borderRightColor = '#333'
-                e.currentTarget.style.borderTopColor = '#333'
-                e.currentTarget.style.borderBottomColor = '#333'
+                if (!isSelected) {
+                  e.currentTarget.style.borderRightColor = '#333'
+                  e.currentTarget.style.borderTopColor = '#333'
+                  e.currentTarget.style.borderBottomColor = '#333'
+                }
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

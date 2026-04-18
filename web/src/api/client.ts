@@ -106,6 +106,25 @@ export interface DecisionDetail {
   sourceThread: { id: string; title: string; status: string } | null
 }
 
+export interface ThreadEntry {
+  id: string
+  type: string
+  content: string
+  author: string
+  targetId?: string
+  stance?: string
+  isRetracted: boolean
+  instant: string
+}
+
+export interface ThreadDetail {
+  id: string
+  title: string
+  question: string
+  status: string
+  entries: ThreadEntry[]
+}
+
 export interface Task {
   id: string
   title: string
