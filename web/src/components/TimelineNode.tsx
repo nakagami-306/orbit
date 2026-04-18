@@ -1,205 +1,256 @@
 import { memo } from 'react'
-import type { DAGNode, EntityNode } from '../api/client'
+import type { ProcessedDecision } from './Timeline'
 import { formatTimeShort } from '../utils/time'
 
-export interface TimelineNodeProps {
-  decision: DAGNode
+interface Props {
+  item: ProcessedDecision
   isSelected: boolean
   onClick: () => void
-  relatedThreads: EntityNode[]
-  relatedTasks: EntityNode[]
-  relatedSections: EntityNode[]
-  milestone: string | null
-  sourceThread: EntityNode | null
-  parentCount: number
-  isRoot: boolean
+  isFirst: boolean
+  isLast: boolean
 }
 
-function TimelineNode({
-  decision,
-  isSelected,
-  onClick,
-  relatedThreads,
-  relatedTasks,
-  relatedSections,
-  milestone,
-  sourceThread,
-  parentCount,
-  isRoot,
-}: TimelineNodeProps) {
+function TimelineNode({ item, isSelected, onClick, isFirst, isLast }: Props) {
+  const {
+    decision, relatedThreads, relatedTasks, relatedSections,
+    milestone, sourceThread, parentCount, isRoot, parentTitles, childCount,
+  } = item
+
   const dotColor = isRoot
     ? '#4a9eff'
     : decision.type === 'merge'
       ? '#a855f7'
-      : '#666'
+      : '#555'
 
-  const sectionCount = relatedSections.length
-  const taskCount = relatedTasks.length
-  const threadCount = relatedThreads.length
-
-  const summaryParts: string[] = []
-  if (sectionCount > 0) summaryParts.push(`${sectionCount} section${sectionCount !== 1 ? 's' : ''}`)
-  if (taskCount > 0) summaryParts.push(`${taskCount} task${taskCount !== 1 ? 's' : ''}`)
-  if (threadCount > 0 && !sourceThread) summaryParts.push(`${threadCount} thread${threadCount !== 1 ? 's' : ''}`)
+  const dotSize = isRoot ? 14 : 10
+  const hasEntities = relatedSections.length > 0 || relatedTasks.length > 0
+    || relatedThreads.length > 0 || sourceThread
 
   return (
-    <div
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        gap: '0',
-        cursor: 'pointer',
-        position: 'relative',
-      }}
-    >
-      {/* Timeline track */}
+    <div style={{ position: 'relative', paddingBottom: isLast ? 0 : '4px' }}>
+      {/* Dot on the timeline line */}
       <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        width: '40px',
-        flexShrink: 0,
-        position: 'relative',
-      }}>
-        {/* Line above dot */}
-        <div style={{
-          width: '2px',
-          flex: 1,
-          background: '#333',
-          minHeight: '12px',
-        }} />
-        {/* Dot */}
-        <div style={{
-          width: isRoot ? '14px' : '10px',
-          height: isRoot ? '14px' : '10px',
-          borderRadius: '50%',
-          background: dotColor,
-          border: isSelected ? '2px solid #fff' : `2px solid ${dotColor}`,
-          flexShrink: 0,
-          zIndex: 1,
-          boxShadow: isSelected ? `0 0 8px ${dotColor}` : 'none',
-        }} />
-        {/* Line below dot */}
-        <div style={{
-          width: '2px',
-          flex: 1,
-          background: '#333',
-          minHeight: '12px',
-        }} />
-      </div>
+        position: 'absolute',
+        left: -dotSize / 2,
+        top: '18px',
+        width: `${dotSize}px`,
+        height: `${dotSize}px`,
+        borderRadius: '50%',
+        background: dotColor,
+        border: isSelected ? '2px solid #e0e0e0' : 'none',
+        boxShadow: isSelected ? `0 0 10px ${dotColor}` : 'none',
+        zIndex: 2,
+      }} />
 
       {/* Card */}
-      <div style={{
-        flex: 1,
-        padding: '10px 14px',
-        margin: '4px 0',
-        background: isSelected ? '#1e2a3a' : '#1e1e1e',
-        borderRadius: '8px',
-        border: isSelected ? '1px solid #4a9eff' : '1px solid #333',
-        borderLeft: isSelected ? '3px solid #4a9eff' : '3px solid transparent',
-        transition: 'all 0.15s',
-      }}
+      <div
+        onClick={onClick}
+        style={{
+          marginLeft: '20px',
+          cursor: 'pointer',
+          borderRadius: '8px',
+          border: isSelected ? '1px solid #4a9eff' : '1px solid transparent',
+          background: isSelected ? '#141c28' : 'transparent',
+          transition: 'all 0.15s',
+          overflow: 'hidden',
+        }}
         onMouseEnter={e => {
-          if (!isSelected) {
-            e.currentTarget.style.borderColor = '#555'
-            e.currentTarget.style.background = '#222'
-          }
+          if (!isSelected) e.currentTarget.style.background = '#181818'
         }}
         onMouseLeave={e => {
-          if (!isSelected) {
-            e.currentTarget.style.borderColor = '#333'
-            e.currentTarget.style.background = '#1e1e1e'
-          }
+          if (!isSelected) e.currentTarget.style.background = 'transparent'
         }}
       >
-        {/* Title row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-          <div style={{ fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.3, color: '#e0e0e0' }}>
-            {decision.title}
-          </div>
-          <div style={{
-            fontSize: '0.7rem',
-            color: '#888',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}>
-            <span>{decision.author}</span>
-            <span style={{ color: '#555' }}>·</span>
-            <span>{formatTimeShort(decision.instant)}</span>
-          </div>
-        </div>
-
-        {/* Type / branch badges */}
-        <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-          {decision.type === 'merge' && (
-            <span style={{
+        {/* Decision header */}
+        <div style={{ padding: '10px 14px 6px' }}>
+          {/* Parent link - shows the DAG connection */}
+          {!isRoot && parentTitles.length > 0 && (
+            <div style={{
               fontSize: '0.65rem',
-              padding: '1px 6px',
-              borderRadius: '3px',
-              background: '#2a1a3a',
-              color: '#a855f7',
+              color: '#555',
+              marginBottom: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
             }}>
-              merge
-            </span>
-          )}
-          {isRoot && (
-            <span style={{
-              fontSize: '0.65rem',
-              padding: '1px 6px',
-              borderRadius: '3px',
-              background: '#1a2a3a',
-              color: '#4a9eff',
-            }}>
-              root
-            </span>
-          )}
-          {parentCount > 1 && (
-            <span style={{
-              fontSize: '0.65rem',
-              padding: '1px 6px',
-              borderRadius: '3px',
-              background: '#2a2a2a',
-              color: '#888',
-            }}>
-              {parentCount} parents
-            </span>
-          )}
-        </div>
-
-        {/* Related entities */}
-        <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          {sourceThread && (
-            <div style={{ fontSize: '0.75rem', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#555' }}>&larr;</span>
-              <span style={{ color: '#22c55e' }}>{sourceThread.title}</span>
-              <span style={{
-                fontSize: '0.6rem',
-                padding: '0 4px',
-                borderRadius: '2px',
-                background: '#0f2a1a',
-                color: '#22c55e',
-              }}>thread</span>
+              <span style={{ color: '#3a3a3a' }}>&#9585;</span>
+              {parentCount > 1
+                ? <span>{parentCount} parents (merge)</span>
+                : <span>follows: {truncate(parentTitles[0], 50)}</span>
+              }
             </div>
           )}
-          {summaryParts.length > 0 && (
-            <div style={{ fontSize: '0.75rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#555' }}>&rarr;</span>
-              <span>{summaryParts.join(' · ')}</span>
+
+          {/* Title row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.3, color: '#e0e0e0' }}>
+                {decision.title}
+              </span>
+              {isRoot && (
+                <span style={{
+                  fontSize: '0.6rem', padding: '1px 5px', borderRadius: '3px',
+                  background: '#1a2a3a', color: '#4a9eff',
+                }}>root</span>
+              )}
+              {decision.type === 'merge' && (
+                <span style={{
+                  fontSize: '0.6rem', padding: '1px 5px', borderRadius: '3px',
+                  background: '#2a1a3a', color: '#a855f7',
+                }}>merge</span>
+              )}
             </div>
-          )}
+            <div style={{
+              fontSize: '0.7rem', color: '#666', whiteSpace: 'nowrap', flexShrink: 0,
+            }}>
+              {decision.author} · {formatTimeShort(decision.instant)}
+            </div>
+          </div>
+
+          {/* Milestone */}
           {milestone && (
-            <div style={{ fontSize: '0.75rem', color: '#f0c040', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ color: '#f0c040' }}>&#9670;</span>
-              <span>{milestone}</span>
+            <div style={{
+              marginTop: '4px', fontSize: '0.7rem',
+              display: 'inline-flex', alignItems: 'center', gap: '4px',
+              padding: '2px 8px', borderRadius: '3px',
+              background: '#2a2510', color: '#f0c040',
+            }}>
+              &#9670; {milestone}
+            </div>
+          )}
+
+          {/* Child count hint */}
+          {childCount > 1 && (
+            <div style={{
+              fontSize: '0.65rem', color: '#444', marginTop: '2px',
+            }}>
+              &#9581; {childCount} follow-up decisions
             </div>
           )}
         </div>
+
+        {/* Related entities - only if any exist */}
+        {hasEntities && (
+          <div style={{
+            padding: '6px 14px 10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+          }}>
+            {/* Source thread - the input that led to this decision */}
+            {sourceThread && (
+              <EntityChip
+                color="#22c55e"
+                bg="#0a1f14"
+                border="#163b28"
+                label="THREAD"
+                title={sourceThread.title}
+                status={sourceThread.status}
+                direction="in"
+              />
+            )}
+
+            {/* Other threads (not the source) */}
+            {relatedThreads.filter(t => t.id !== sourceThread?.id).map(t => (
+              <EntityChip
+                key={t.id}
+                color="#22c55e"
+                bg="#0a1f14"
+                border="#163b28"
+                label="THREAD"
+                title={t.title}
+                status={t.status}
+              />
+            ))}
+
+            {/* Sections affected */}
+            {relatedSections.map(s => (
+              <EntityChip
+                key={s.id}
+                color={s.status === 'stale' ? '#eab308' : '#8b8b8b'}
+                bg={s.status === 'stale' ? '#1a1a0a' : '#141414'}
+                border={s.status === 'stale' ? '#2a2a10' : '#252525'}
+                label="SECTION"
+                title={s.title}
+                status={s.status === 'stale' ? 'stale' : undefined}
+                direction="out"
+              />
+            ))}
+
+            {/* Tasks spawned */}
+            {relatedTasks.map(t => (
+              <EntityChip
+                key={t.id}
+                color="#f97316"
+                bg="#1a1208"
+                border="#2a2010"
+                label="TASK"
+                title={t.title}
+                status={t.status.split(' ')[0]}
+                direction="out"
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+function EntityChip({ color, bg, border, label, title, status, direction }: {
+  color: string
+  bg: string
+  border: string
+  label: string
+  title: string
+  status?: string
+  direction?: 'in' | 'out'
+}) {
+  const arrow = direction === 'in' ? '\u2190' : direction === 'out' ? '\u2192' : ''
+
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '3px 8px',
+      background: bg,
+      border: `1px solid ${border}`,
+      borderRadius: '4px',
+      fontSize: '0.75rem',
+    }}>
+      {arrow && <span style={{ color: '#444', fontSize: '0.7rem' }}>{arrow}</span>}
+      <span style={{
+        fontSize: '0.55rem',
+        fontWeight: 700,
+        color,
+        letterSpacing: '0.05em',
+        flexShrink: 0,
+        minWidth: '52px',
+      }}>
+        {label}
+      </span>
+      <span style={{ color: '#bbb', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {title}
+      </span>
+      {status && (
+        <span style={{
+          fontSize: '0.6rem',
+          padding: '0 4px',
+          borderRadius: '2px',
+          color,
+          opacity: 0.8,
+          flexShrink: 0,
+        }}>
+          {status}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max) + '...'
 }
 
 export default memo(TimelineNode)

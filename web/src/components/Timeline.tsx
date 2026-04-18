@@ -8,7 +8,7 @@ interface Props {
   onSelectDecision: (id: string | null) => void
 }
 
-interface ProcessedDecision {
+export interface ProcessedDecision {
   decision: DAGNode
   relatedThreads: EntityNode[]
   relatedTasks: EntityNode[]
@@ -17,6 +17,8 @@ interface ProcessedDecision {
   sourceThread: EntityNode | null
   parentCount: number
   isRoot: boolean
+  parentTitles: string[]
+  childCount: number
 }
 
 export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: Props) {
@@ -29,6 +31,12 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
       entityMap.set(e.id, e)
     }
 
+    // Build decision title lookup
+    const decisionTitleMap = new Map<string, string>()
+    for (const n of dag.nodes) {
+      decisionTitleMap.set(n.id, n.title)
+    }
+
     // Build milestone lookup (decisionId -> title)
     const milestoneMap = new Map<string, string>()
     for (const ms of dag.milestones || []) {
@@ -36,7 +44,6 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
     }
 
     // Build entity edges: decision -> related entities
-    // entityEdges go from decision to entity (source=decision, target=entity)
     const decisionEntities = new Map<string, EntityNode[]>()
     for (const edge of dag.entityEdges || []) {
       const entity = entityMap.get(edge.target)
@@ -45,7 +52,7 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
         existing.push(entity)
         decisionEntities.set(edge.source, existing)
       }
-      // Also check reverse direction
+      // Also check reverse direction (thread -> decision)
       const entityReverse = entityMap.get(edge.source)
       if (entityReverse) {
         const existing = decisionEntities.get(edge.target) || []
@@ -54,21 +61,20 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
       }
     }
 
-    // Build parent count (how many edges target this decision)
-    const parentCount = new Map<string, number>()
-    const childCount = new Map<string, number>()
+    // Build parent/child relationships
+    const parentIds = new Map<string, string[]>()
+    const childCounts = new Map<string, number>()
     for (const edge of dag.edges || []) {
-      parentCount.set(edge.target, (parentCount.get(edge.target) || 0) + 1)
-      childCount.set(edge.source, (childCount.get(edge.source) || 0) + 1)
+      const parents = parentIds.get(edge.target) || []
+      parents.push(edge.source)
+      parentIds.set(edge.target, parents)
+      childCounts.set(edge.source, (childCounts.get(edge.source) || 0) + 1)
     }
 
-    // Find root decisions (no parents among decision edges)
-    const decisionIds = new Set(dag.nodes.map(n => n.id))
+    // Find root decisions
     const hasParent = new Set<string>()
     for (const edge of dag.edges || []) {
-      if (decisionIds.has(edge.target)) {
-        hasParent.add(edge.target)
-      }
+      hasParent.add(edge.target)
     }
 
     // Process each decision
@@ -78,11 +84,13 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
       const relatedTasks = related.filter(e => e.type === 'task')
       const relatedSections = related.filter(e => e.type === 'section')
 
-      // Find source thread
       let sourceThread: EntityNode | null = null
       if (decision.sourceThreadId) {
         sourceThread = entityMap.get(decision.sourceThreadId) || null
       }
+
+      const parents = parentIds.get(decision.id) || []
+      const parentTitles = parents.map(pid => decisionTitleMap.get(pid) || pid.slice(0, 8))
 
       return {
         decision,
@@ -91,12 +99,13 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
         relatedSections,
         milestone: milestoneMap.get(decision.id) || null,
         sourceThread,
-        parentCount: parentCount.get(decision.id) || 0,
+        parentCount: parents.length,
         isRoot: !hasParent.has(decision.id),
+        parentTitles,
+        childCount: childCounts.get(decision.id) || 0,
       }
     })
 
-    // Sort by instant (chronological)
     result.sort((a, b) => {
       const aTime = a.decision.instant || ''
       const bTime = b.decision.instant || ''
@@ -108,13 +117,12 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
     return result
   }, [dag, sortNewestFirst])
 
-  // Branch info
   const branches = dag.branches || []
   const mainBranch = branches.find(b => b.isMain)
   const otherBranches = branches.filter(b => !b.isMain)
 
   return (
-    <div style={{ height: '100%', overflow: 'auto', padding: '1rem' }}>
+    <div style={{ height: '100%', overflow: 'auto', padding: '1rem 1.5rem' }}>
       {/* Controls */}
       <div style={{
         display: 'flex',
@@ -124,25 +132,38 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
         padding: '0 0 0.75rem',
         borderBottom: '1px solid #2a2a2a',
       }}>
-        <div style={{ fontSize: '0.8rem', color: '#888' }}>
-          {processed.length} decision{processed.length !== 1 ? 's' : ''}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ fontSize: '0.8rem', color: '#888' }}>
+            {processed.length} decision{processed.length !== 1 ? 's' : ''}
+          </div>
+          {/* Branch indicators inline */}
           {branches.length > 1 && (
-            <span style={{ marginLeft: '12px' }}>
-              {branches.length} branch{branches.length !== 1 ? 'es' : ''}
-            </span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {mainBranch && (
+                <span style={{
+                  fontSize: '0.65rem', padding: '1px 6px', borderRadius: '3px',
+                  background: '#1a2a3a', color: '#4a9eff', border: '1px solid #2a3a4a',
+                }}>
+                  {mainBranch.name || 'main'}
+                </span>
+              )}
+              {otherBranches.map(b => (
+                <span key={b.id} style={{
+                  fontSize: '0.65rem', padding: '1px 6px', borderRadius: '3px',
+                  background: '#2a2a2a', color: '#888', border: '1px solid #333',
+                }}>
+                  {b.name || '(unnamed)'}
+                </span>
+              ))}
+            </div>
           )}
         </div>
 
         <button
           onClick={() => setSortNewestFirst(prev => !prev)}
           style={{
-            background: '#2a2a2a',
-            border: '1px solid #444',
-            color: '#aaa',
-            fontSize: '0.75rem',
-            padding: '4px 10px',
-            borderRadius: '4px',
-            cursor: 'pointer',
+            background: '#2a2a2a', border: '1px solid #444', color: '#aaa',
+            fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer',
           }}
           onMouseEnter={e => { e.currentTarget.style.background = '#333' }}
           onMouseLeave={e => { e.currentTarget.style.background = '#2a2a2a' }}
@@ -151,72 +172,38 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision }: 
         </button>
       </div>
 
-      {/* Branch indicators */}
-      {branches.length > 1 && (
-        <div style={{
-          display: 'flex',
-          gap: '8px',
-          marginBottom: '1rem',
-          flexWrap: 'wrap',
-        }}>
-          {mainBranch && (
-            <span style={{
-              fontSize: '0.7rem',
-              padding: '2px 8px',
-              borderRadius: '4px',
-              background: '#1a2a3a',
-              color: '#4a9eff',
-              border: '1px solid #2a3a4a',
-            }}>
-              {mainBranch.name || 'main'}
-            </span>
-          )}
-          {otherBranches.map(b => (
-            <span key={b.id} style={{
-              fontSize: '0.7rem',
-              padding: '2px 8px',
-              borderRadius: '4px',
-              background: '#2a2a2a',
-              color: '#888',
-              border: '1px solid #333',
-            }}>
-              {b.name || '(unnamed)'}
-              {b.status !== 'active' && (
-                <span style={{ marginLeft: '4px', color: '#555' }}>({b.status})</span>
-              )}
-            </span>
-          ))}
-        </div>
-      )}
-
       {/* Timeline */}
-      <div style={{ position: 'relative' }}>
-        {processed.map(item => (
+      <div style={{ position: 'relative', paddingLeft: '20px' }}>
+        {/* Continuous vertical line */}
+        {processed.length > 0 && (
+          <div style={{
+            position: 'absolute',
+            left: '20px',
+            top: 0,
+            bottom: 0,
+            width: '2px',
+            background: '#2a2a2a',
+          }} />
+        )}
+
+        {processed.map((item, idx) => (
           <TimelineNode
             key={item.decision.id}
-            decision={item.decision}
+            item={item}
             isSelected={selectedDecisionId === item.decision.id}
             onClick={() => {
               onSelectDecision(
                 selectedDecisionId === item.decision.id ? null : item.decision.id
               )
             }}
-            relatedThreads={item.relatedThreads}
-            relatedTasks={item.relatedTasks}
-            relatedSections={item.relatedSections}
-            milestone={item.milestone}
-            sourceThread={item.sourceThread}
-            parentCount={item.parentCount}
-            isRoot={item.isRoot}
+            isFirst={idx === 0}
+            isLast={idx === processed.length - 1}
           />
         ))}
 
         {processed.length === 0 && (
           <div style={{
-            textAlign: 'center',
-            color: '#555',
-            padding: '3rem',
-            fontSize: '0.9rem',
+            textAlign: 'center', color: '#555', padding: '3rem', fontSize: '0.9rem',
           }}>
             No decisions yet. Create one with <code style={{ color: '#888' }}>orbit decide</code>.
           </div>
