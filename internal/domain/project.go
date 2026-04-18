@@ -398,14 +398,12 @@ func (s *ProjectService) AddSectionRef(ctx context.Context, fromSectionID, toSec
 	decisionStableID = eavt.NewStableID()
 
 	err = s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
-		// Get current head decision
-		var currentHead *int64
+		// Get current head decision (required — only root Decision has no parent)
 		var headID int64
-		headErr := sqlTx.QueryRow(
+		if err := sqlTx.QueryRow(
 			"SELECT head_decision_id FROM p_branches WHERE entity_id = ?", branchID,
-		).Scan(&headID)
-		if headErr == nil && headID > 0 {
-			currentHead = &headID
+		).Scan(&headID); err != nil || headID == 0 {
+			return fmt.Errorf("branch has no head decision: cannot create decision without parent")
 		}
 
 		// Create decision entity
@@ -445,16 +443,12 @@ func (s *ProjectService) AddSectionRef(ctx context.Context, fromSectionID, toSec
 		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionProjectID, eavt.NewRef(projectEntityID), txID); err != nil {
 			return err
 		}
-		if currentHead != nil {
-			if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{*currentHead}), txID); err != nil {
-				return err
-			}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{headID}), txID); err != nil {
+			return err
 		}
 
 		// Update branch head
-		if currentHead != nil {
-			eavt.RetractDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(*currentHead), txID)
-		}
+		eavt.RetractDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(headID), txID)
 		if err := eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(decisionEntityID), txID); err != nil {
 			return err
 		}
@@ -480,14 +474,12 @@ func (s *ProjectService) RemoveSectionRef(ctx context.Context, fromSectionID, to
 	decisionStableID = eavt.NewStableID()
 
 	err = s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
-		// Get current head decision
-		var currentHead *int64
+		// Get current head decision (required — only root Decision has no parent)
 		var headID int64
-		headErr := sqlTx.QueryRow(
+		if err := sqlTx.QueryRow(
 			"SELECT head_decision_id FROM p_branches WHERE entity_id = ?", branchID,
-		).Scan(&headID)
-		if headErr == nil && headID > 0 {
-			currentHead = &headID
+		).Scan(&headID); err != nil || headID == 0 {
+			return fmt.Errorf("branch has no head decision: cannot create decision without parent")
 		}
 
 		// Create decision entity
@@ -527,16 +519,12 @@ func (s *ProjectService) RemoveSectionRef(ctx context.Context, fromSectionID, to
 		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionProjectID, eavt.NewRef(projectEntityID), txID); err != nil {
 			return err
 		}
-		if currentHead != nil {
-			if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{*currentHead}), txID); err != nil {
-				return err
-			}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{headID}), txID); err != nil {
+			return err
 		}
 
 		// Update branch head
-		if currentHead != nil {
-			eavt.RetractDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(*currentHead), txID)
-		}
+		eavt.RetractDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(headID), txID)
 		if err := eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(decisionEntityID), txID); err != nil {
 			return err
 		}
@@ -578,14 +566,12 @@ func (s *ProjectService) RemoveSection(ctx context.Context, sectionEntityID, bra
 			}
 		}
 
-		// Get current head decision
-		var currentHead *int64
+		// Get current head decision (required — only root Decision has no parent)
 		var headID int64
-		headErr := sqlTx.QueryRow(
+		if err := sqlTx.QueryRow(
 			"SELECT head_decision_id FROM p_branches WHERE entity_id = ?", branchID,
-		).Scan(&headID)
-		if headErr == nil && headID > 0 {
-			currentHead = &headID
+		).Scan(&headID); err != nil || headID == 0 {
+			return fmt.Errorf("branch has no head decision: cannot create decision without parent")
 		}
 
 		// Create decision entity
@@ -633,16 +619,12 @@ func (s *ProjectService) RemoveSection(ctx context.Context, sectionEntityID, bra
 		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionProjectID, eavt.NewRef(projectEntityID), txID); err != nil {
 			return err
 		}
-		if currentHead != nil {
-			if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{*currentHead}), txID); err != nil {
-				return err
-			}
+		if err := eavt.AssertDatom(sqlTx, decisionEntityID, eavt.AttrDecisionParents, eavt.NewRefSet([]int64{headID}), txID); err != nil {
+			return err
 		}
 
 		// Update branch head
-		if currentHead != nil {
-			eavt.RetractDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(*currentHead), txID)
-		}
+		eavt.RetractDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(headID), txID)
 		if err := eavt.AssertDatom(sqlTx, branchID, eavt.AttrBranchHeadDecision, eavt.NewRef(decisionEntityID), txID); err != nil {
 			return err
 		}
