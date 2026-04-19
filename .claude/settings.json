@@ -1,5 +1,4 @@
 {
-  "description": "Orbit workflow enforcement hooks.",
   "hooks": {
     "SessionStart": [
       {

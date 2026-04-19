@@ -103,7 +103,6 @@ def main():
     ctx.append("")
     ctx.append("チャット上の議論はorbit thread addでその都度記録する。「後でまとめて」は禁止。")
     ctx.append("チャットのコンテキストは圧縮で消えるが、Orbitの記録は永続する。")
-    ctx.append("Stop hookが議論の記録漏れを検知してブロックすることがある。その場合は記録してから続行する。")
     ctx.append("")
 
     # --- 現在の状態 ---
