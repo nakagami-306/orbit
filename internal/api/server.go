@@ -235,8 +235,8 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func (s *Server) resolveProjectID(stableIDPrefix string) (int64, error) {
 	var entityID int64
 	err := s.db.Conn().QueryRow(
-		"SELECT entity_id FROM p_projects WHERE stable_id LIKE ?",
-		stableIDPrefix+"%",
+		"SELECT entity_id FROM p_projects WHERE stable_id = ?",
+		stableIDPrefix,
 	).Scan(&entityID)
 	if err != nil {
 		return 0, fmt.Errorf("project %q not found", stableIDPrefix)

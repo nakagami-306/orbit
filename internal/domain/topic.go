@@ -110,8 +110,8 @@ func (s *TopicService) FindTopic(ctx context.Context, projectEntityID int64, pre
 	var t Topic
 	var outcomeID sql.NullInt64
 	err := s.DB.Conn().QueryRowContext(ctx,
-		"SELECT entity_id, stable_id, project_id, title, COALESCE(description,''), status, outcome_decision_id FROM p_topics WHERE project_id = ? AND stable_id LIKE ?",
-		projectEntityID, prefix+"%",
+		"SELECT entity_id, stable_id, project_id, title, COALESCE(description,''), status, outcome_decision_id FROM p_topics WHERE project_id = ? AND stable_id = ?",
+		projectEntityID, prefix,
 	).Scan(&t.EntityID, &t.StableID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &outcomeID)
 	if err != nil {
 		return nil, fmt.Errorf("topic %q not found: %w", prefix, err)

@@ -170,8 +170,8 @@ func newTopicAddThreadCmd(app *App) *cobra.Command {
 			// Resolve topic
 			var topicEntityID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_topics WHERE project_id = ? AND stable_id LIKE ?",
-				info.ProjectEntityID, topicPrefix+"%",
+				"SELECT entity_id FROM p_topics WHERE project_id = ? AND stable_id = ?",
+				info.ProjectEntityID, topicPrefix,
 			).Scan(&topicEntityID)
 			if err != nil {
 				return fmt.Errorf("topic %q not found: %w", topicPrefix, err)
@@ -180,8 +180,8 @@ func newTopicAddThreadCmd(app *App) *cobra.Command {
 			// Resolve thread
 			var threadEntityID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id LIKE ?",
-				info.ProjectEntityID, threadPrefix+"%",
+				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id = ?",
+				info.ProjectEntityID, threadPrefix,
 			).Scan(&threadEntityID)
 			if err != nil {
 				return fmt.Errorf("thread %q not found: %w", threadPrefix, err)
@@ -220,8 +220,8 @@ func newTopicRemoveThreadCmd(app *App) *cobra.Command {
 			// Resolve topic
 			var topicEntityID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_topics WHERE project_id = ? AND stable_id LIKE ?",
-				info.ProjectEntityID, topicPrefix+"%",
+				"SELECT entity_id FROM p_topics WHERE project_id = ? AND stable_id = ?",
+				info.ProjectEntityID, topicPrefix,
 			).Scan(&topicEntityID)
 			if err != nil {
 				return fmt.Errorf("topic %q not found: %w", topicPrefix, err)
@@ -230,8 +230,8 @@ func newTopicRemoveThreadCmd(app *App) *cobra.Command {
 			// Resolve thread
 			var threadEntityID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id LIKE ?",
-				info.ProjectEntityID, threadPrefix+"%",
+				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id = ?",
+				info.ProjectEntityID, threadPrefix,
 			).Scan(&threadEntityID)
 			if err != nil {
 				return fmt.Errorf("thread %q not found: %w", threadPrefix, err)

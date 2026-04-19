@@ -131,8 +131,8 @@ func resolvePoint(app *App, projectEntityID int64, point string) (int64, error) 
 	// Try branch name
 	var branchID int64
 	err := conn.QueryRow(
-		"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id LIKE ?)",
-		projectEntityID, point, point+"%",
+		"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id = ?)",
+		projectEntityID, point, point,
 	).Scan(&branchID)
 	if err == nil {
 		return branchID, nil
@@ -140,8 +140,8 @@ func resolvePoint(app *App, projectEntityID int64, point string) (int64, error) 
 
 	// Try as decision — find the branch it belongs to
 	err = conn.QueryRow(
-		"SELECT branch_id FROM p_decisions WHERE project_id = ? AND stable_id LIKE ?",
-		projectEntityID, point+"%",
+		"SELECT branch_id FROM p_decisions WHERE project_id = ? AND stable_id = ?",
+		projectEntityID, point,
 	).Scan(&branchID)
 	if err == nil {
 		return branchID, nil

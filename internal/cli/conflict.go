@@ -87,8 +87,8 @@ func newConflictShowCmd(app *App) *cobra.Command {
 			var sectionID int64
 			err := app.DB.Conn().QueryRow(`
 				SELECT stable_id, section_id, field, status, COALESCE(base_value,'')
-				FROM p_conflicts WHERE stable_id LIKE ?
-			`, prefix+"%").Scan(&stableID, &sectionID, &field, &status, &baseValue)
+				FROM p_conflicts WHERE stable_id = ?
+			`, prefix).Scan(&stableID, &sectionID, &field, &status, &baseValue)
 			if err != nil {
 				return fmt.Errorf("conflict %q not found: %w", prefix, err)
 			}
@@ -178,8 +178,8 @@ func newConflictResolveCmd(app *App) *cobra.Command {
 			var conflictEntityID, sectionID int64
 			err = app.DB.Conn().QueryRow(`
 				SELECT entity_id, section_id FROM p_conflicts
-				WHERE stable_id LIKE ? AND status = 'unresolved'
-			`, prefix+"%").Scan(&conflictEntityID, &sectionID)
+				WHERE stable_id = ? AND status = 'unresolved'
+			`, prefix).Scan(&conflictEntityID, &sectionID)
 			if err != nil {
 				return fmt.Errorf("unresolved conflict %q not found: %w", prefix, err)
 			}

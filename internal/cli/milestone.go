@@ -41,8 +41,8 @@ func newMilestoneSetCmd(app *App) *cobra.Command {
 			var decisionEntityID int64
 			if atDecision != "" {
 				err = app.DB.Conn().QueryRow(
-					"SELECT entity_id FROM p_decisions WHERE project_id = ? AND stable_id LIKE ?",
-					info.ProjectEntityID, atDecision+"%",
+					"SELECT entity_id FROM p_decisions WHERE project_id = ? AND stable_id = ?",
+					info.ProjectEntityID, atDecision,
 				).Scan(&decisionEntityID)
 				if err != nil {
 					return fmt.Errorf("decision %q not found: %w", atDecision, err)

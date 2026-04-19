@@ -123,8 +123,8 @@ func newBranchSwitchCmd(app *App) *cobra.Command {
 			// Find branch by name or prefix
 			var branchID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id LIKE ?)",
-				info.ProjectEntityID, branchName, branchName+"%",
+				"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id = ?)",
+				info.ProjectEntityID, branchName, branchName,
 			).Scan(&branchID)
 			if err != nil {
 				return fmt.Errorf("branch %q not found: %w", branchName, err)
@@ -165,8 +165,8 @@ func newBranchNameCmd(app *App) *cobra.Command {
 
 			var branchID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id LIKE ?)",
-				info.ProjectEntityID, branchPrefix, branchPrefix+"%",
+				"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id = ?)",
+				info.ProjectEntityID, branchPrefix, branchPrefix,
 			).Scan(&branchID)
 			if err != nil {
 				return fmt.Errorf("branch %q not found: %w", branchPrefix, err)
@@ -204,8 +204,8 @@ func newBranchMergeCmd(app *App) *cobra.Command {
 			// Resolve source branch
 			var sourceID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id LIKE ?)",
-				info.ProjectEntityID, sourceRef, sourceRef+"%",
+				"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id = ?)",
+				info.ProjectEntityID, sourceRef, sourceRef,
 			).Scan(&sourceID)
 			if err != nil {
 				return fmt.Errorf("source branch %q not found: %w", sourceRef, err)
@@ -215,8 +215,8 @@ func newBranchMergeCmd(app *App) *cobra.Command {
 			targetID := info.BranchID
 			if into != "" {
 				err = app.DB.Conn().QueryRow(
-					"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id LIKE ?)",
-					info.ProjectEntityID, into, into+"%",
+					"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id = ?)",
+					info.ProjectEntityID, into, into,
 				).Scan(&targetID)
 				if err != nil {
 					return fmt.Errorf("target branch %q not found: %w", into, err)
@@ -266,8 +266,8 @@ func newBranchAbandonCmd(app *App) *cobra.Command {
 
 			var branchID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id LIKE ?)",
-				info.ProjectEntityID, branchRef, branchRef+"%",
+				"SELECT entity_id FROM p_branches WHERE project_id = ? AND (name = ? OR stable_id = ?)",
+				info.ProjectEntityID, branchRef, branchRef,
 			).Scan(&branchID)
 			if err != nil {
 				return fmt.Errorf("branch %q not found: %w", branchRef, err)

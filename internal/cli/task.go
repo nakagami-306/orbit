@@ -51,8 +51,8 @@ func newTaskCreateCmd(app *App) *cobra.Command {
 				var eid int64
 				var etype string
 				err := app.DB.Conn().QueryRow(
-					"SELECT id, entity_type FROM entities WHERE stable_id LIKE ?",
-					source+"%",
+					"SELECT id, entity_type FROM entities WHERE stable_id = ?",
+					source,
 				).Scan(&eid, &etype)
 				if err != nil {
 					return fmt.Errorf("source %q not found: %w", source, err)

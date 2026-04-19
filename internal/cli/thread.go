@@ -118,8 +118,8 @@ func newThreadShowCmd(app *App) *cobra.Command {
 			// Find thread
 			var threadEntityID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id LIKE ?",
-				info.ProjectEntityID, threadPrefix+"%",
+				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id = ?",
+				info.ProjectEntityID, threadPrefix,
 			).Scan(&threadEntityID)
 			if err != nil {
 				return fmt.Errorf("thread %q not found: %w", threadPrefix, err)
@@ -202,8 +202,8 @@ func newThreadAddCmd(app *App) *cobra.Command {
 
 			var threadEntityID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id LIKE ?",
-				info.ProjectEntityID, threadPrefix+"%",
+				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id = ?",
+				info.ProjectEntityID, threadPrefix,
 			).Scan(&threadEntityID)
 			if err != nil {
 				return fmt.Errorf("thread %q not found: %w", threadPrefix, err)
@@ -214,8 +214,8 @@ func newThreadAddCmd(app *App) *cobra.Command {
 			if targetPrefix != "" {
 				var tid int64
 				err = app.DB.Conn().QueryRow(
-					"SELECT entity_id FROM p_entries WHERE thread_id = ? AND stable_id LIKE ?",
-					threadEntityID, targetPrefix+"%",
+					"SELECT entity_id FROM p_entries WHERE thread_id = ? AND stable_id = ?",
+					threadEntityID, targetPrefix,
 				).Scan(&tid)
 				if err != nil {
 					return fmt.Errorf("target entry %q not found: %w", targetPrefix, err)
@@ -274,8 +274,8 @@ func newThreadCloseCmd(app *App) *cobra.Command {
 
 			var threadEntityID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id LIKE ?",
-				info.ProjectEntityID, threadPrefix+"%",
+				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id = ?",
+				info.ProjectEntityID, threadPrefix,
 			).Scan(&threadEntityID)
 			if err != nil {
 				return fmt.Errorf("thread %q not found: %w", threadPrefix, err)
@@ -334,8 +334,8 @@ func newDecideCmd(app *App) *cobra.Command {
 
 			var threadEntityID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id LIKE ?",
-				info.ProjectEntityID, threadPrefix+"%",
+				"SELECT entity_id FROM p_threads WHERE project_id = ? AND stable_id = ?",
+				info.ProjectEntityID, threadPrefix,
 			).Scan(&threadEntityID)
 			if err != nil {
 				return fmt.Errorf("thread %q not found: %w", threadPrefix, err)
@@ -344,8 +344,8 @@ func newDecideCmd(app *App) *cobra.Command {
 			// Resolve section
 			var sectionEntityID int64
 			err = app.DB.Conn().QueryRow(
-				"SELECT entity_id FROM p_sections WHERE project_id = ? AND branch_id = ? AND (title = ? OR stable_id LIKE ?)",
-				info.ProjectEntityID, info.BranchID, sectionFlag, sectionFlag+"%",
+				"SELECT entity_id FROM p_sections WHERE project_id = ? AND branch_id = ? AND (title = ? OR stable_id = ?)",
+				info.ProjectEntityID, info.BranchID, sectionFlag, sectionFlag,
 			).Scan(&sectionEntityID)
 			if err != nil {
 				return fmt.Errorf("section %q not found: %w", sectionFlag, err)
@@ -368,8 +368,8 @@ func newDecideCmd(app *App) *cobra.Command {
 			if sourceTopicFlag != "" {
 				var topicEntityID int64
 				err = app.DB.Conn().QueryRow(
-					"SELECT entity_id FROM p_topics WHERE project_id = ? AND stable_id LIKE ?",
-					info.ProjectEntityID, sourceTopicFlag+"%",
+					"SELECT entity_id FROM p_topics WHERE project_id = ? AND stable_id = ?",
+					info.ProjectEntityID, sourceTopicFlag,
 				).Scan(&topicEntityID)
 				if err != nil {
 					return fmt.Errorf("topic %q not found: %w", sourceTopicFlag, err)

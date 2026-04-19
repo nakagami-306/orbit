@@ -26,9 +26,9 @@ func newSectionLogCmd(app *App) *cobra.Command {
 			err = app.DB.Conn().QueryRow(`
 				SELECT entity_id FROM p_sections
 				WHERE project_id = ? AND branch_id = ?
-				  AND (title = ? OR stable_id LIKE ?)
+				  AND (title = ? OR stable_id = ?)
 				LIMIT 1
-			`, info.ProjectEntityID, info.BranchID, sectionName, sectionName+"%").Scan(&sectionEntityID)
+			`, info.ProjectEntityID, info.BranchID, sectionName, sectionName).Scan(&sectionEntityID)
 			if err != nil {
 				return fmt.Errorf("section %q not found: %w", sectionName, err)
 			}

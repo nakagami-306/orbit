@@ -723,9 +723,9 @@ func (s *ProjectService) FindSectionByNameOrID(ctx context.Context, identifier s
 		SELECT entity_id, stable_id, project_id, title, COALESCE(content,''), position, is_stale, COALESCE(stale_reason,'')
 		FROM p_sections
 		WHERE project_id = ? AND branch_id = ?
-		  AND (title = ? OR stable_id = ? OR stable_id LIKE ? OR CAST(entity_id AS TEXT) = ?)
+		  AND (title = ? OR stable_id = ? OR CAST(entity_id AS TEXT) = ?)
 		LIMIT 1
-	`, projectEntityID, branchID, identifier, identifier, identifier+"%", identifier).Scan(
+	`, projectEntityID, branchID, identifier, identifier, identifier).Scan(
 		&sec.EntityID, &sec.StableID, &sec.ProjectID,
 		&sec.Title, &sec.Content, &sec.Position,
 		&isStale, &sec.StaleReason,

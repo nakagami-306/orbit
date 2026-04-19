@@ -238,10 +238,10 @@ func TestFindSectionByNameOrID(t *testing.T) {
 		t.Errorf("title = %q, want %q", sec.Title, "API Design")
 	}
 
-	// Find by stable_id prefix (first 8 chars)
-	sec2, err := svc.FindSectionByNameOrID(ctx, secSID[:8], projectID, branchID)
+	// Find by full stable_id
+	sec2, err := svc.FindSectionByNameOrID(ctx, secSID, projectID, branchID)
 	if err != nil {
-		t.Fatalf("FindSection by stable_id prefix: %v", err)
+		t.Fatalf("FindSection by stable_id: %v", err)
 	}
 	if sec2.Title != "API Design" {
 		t.Errorf("title = %q, want %q", sec2.Title, "API Design")

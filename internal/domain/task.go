@@ -162,8 +162,8 @@ func (s *TaskService) UpdateTask(ctx context.Context, taskEntityID int64, newSta
 func (s *TaskService) FindTask(ctx context.Context, projectEntityID int64, prefix string) (*Task, error) {
 	var t Task
 	err := s.DB.Conn().QueryRowContext(ctx,
-		"SELECT entity_id, stable_id, project_id, title, COALESCE(description,''), status, COALESCE(priority,'medium'), COALESCE(assignee,'') FROM p_tasks WHERE project_id = ? AND stable_id LIKE ?",
-		projectEntityID, prefix+"%",
+		"SELECT entity_id, stable_id, project_id, title, COALESCE(description,''), status, COALESCE(priority,'medium'), COALESCE(assignee,'') FROM p_tasks WHERE project_id = ? AND stable_id = ?",
+		projectEntityID, prefix,
 	).Scan(&t.EntityID, &t.StableID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.Assignee)
 	if err != nil {
 		return nil, fmt.Errorf("task %q not found: %w", prefix, err)

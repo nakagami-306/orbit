@@ -150,9 +150,9 @@ func resolveAtToTxID(app *App, info *workspace.Info, atVal string) (int64, error
 	var txID int64
 	err := conn.QueryRow(`
 		SELECT tx_id FROM p_decisions
-		WHERE branch_id = ? AND (stable_id = ? OR stable_id LIKE ?)
+		WHERE branch_id = ? AND stable_id = ?
 		ORDER BY tx_id DESC LIMIT 1
-	`, info.BranchID, atVal, atVal+"%").Scan(&txID)
+	`, info.BranchID, atVal).Scan(&txID)
 	if err == nil {
 		return txID, nil
 	}

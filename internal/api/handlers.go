@@ -470,9 +470,9 @@ func (s *Server) handleGetDecision(w http.ResponseWriter, r *http.Request) {
 		SELECT d.stable_id, d.title, COALESCE(d.rationale,''), COALESCE(d.context,''),
 		       COALESCE(d.author,''), d.instant, d.tx_id, d.source_thread_id
 		FROM p_decisions d
-		WHERE d.project_id = ? AND d.branch_id = ? AND d.stable_id LIKE ?
+		WHERE d.project_id = ? AND d.branch_id = ? AND d.stable_id = ?
 		LIMIT 1
-	`, projectID, branchID, decisionPrefix+"%").Scan(
+	`, projectID, branchID, decisionPrefix).Scan(
 		&stableID, &title, &rationale, &decCtx, &author, &instant, &txID, &sourceThreadID,
 	)
 	if err != nil {
@@ -665,8 +665,8 @@ func (s *Server) handleGetSection(w http.ResponseWriter, r *http.Request) {
 	sectionPrefix := r.PathValue("sid")
 	var sectionEntityID int64
 	err = s.db.Conn().QueryRow(
-		"SELECT entity_id FROM p_sections WHERE project_id = ? AND branch_id = ? AND stable_id LIKE ?",
-		projectID, branchID, sectionPrefix+"%",
+		"SELECT entity_id FROM p_sections WHERE project_id = ? AND branch_id = ? AND stable_id = ?",
+		projectID, branchID, sectionPrefix,
 	).Scan(&sectionEntityID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "section not found")
@@ -751,7 +751,7 @@ func (s *Server) handleGetThread(w http.ResponseWriter, r *http.Request) {
 	threadPrefix := r.PathValue("tid")
 	var threadEntityID int64
 	err := s.db.Conn().QueryRow(
-		"SELECT entity_id FROM p_threads WHERE stable_id LIKE ?", threadPrefix+"%",
+		"SELECT entity_id FROM p_threads WHERE stable_id = ?", threadPrefix,
 	).Scan(&threadEntityID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "thread not found")
@@ -1066,8 +1066,8 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if projectFilter := r.URL.Query().Get("project"); projectFilter != "" {
-		query += " AND p.stable_id LIKE ?"
-		args = append(args, projectFilter+"%")
+		query += " AND p.stable_id = ?"
+		args = append(args, projectFilter)
 	}
 
 	query += " ORDER BY t.entity_id"
@@ -1123,7 +1123,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	// Find task by stable_id prefix
 	var taskEntityID int64
 	err := s.db.Conn().QueryRow(
-		"SELECT entity_id FROM p_tasks WHERE stable_id LIKE ?", taskPrefix+"%",
+		"SELECT entity_id FROM p_tasks WHERE stable_id = ?", taskPrefix,
 	).Scan(&taskEntityID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "task not found")

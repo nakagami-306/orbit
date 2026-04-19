@@ -38,9 +38,9 @@ func newRevertCmd(app *App) *cobra.Command {
 			err = app.DB.Conn().QueryRow(`
 				SELECT d.entity_id, d.title, d.tx_id
 				FROM p_decisions d
-				WHERE d.project_id = ? AND d.branch_id = ? AND d.stable_id LIKE ?
+				WHERE d.project_id = ? AND d.branch_id = ? AND d.stable_id = ?
 				LIMIT 1
-			`, info.ProjectEntityID, info.BranchID, decisionPrefix+"%").Scan(
+			`, info.ProjectEntityID, info.BranchID, decisionPrefix).Scan(
 				&targetDecisionEntityID, &targetTitle, &targetTxID,
 			)
 			if err != nil {

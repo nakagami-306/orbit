@@ -97,9 +97,9 @@ func newDecisionShowCmd(app *App) *cobra.Command {
 				SELECT d.stable_id, d.title, COALESCE(d.rationale,''), COALESCE(d.context,''),
 				       COALESCE(d.author,''), d.instant, d.tx_id
 				FROM p_decisions d
-				WHERE d.project_id = ? AND d.branch_id = ? AND d.stable_id LIKE ?
+				WHERE d.project_id = ? AND d.branch_id = ? AND d.stable_id = ?
 				LIMIT 1
-			`, info.ProjectEntityID, info.BranchID, decisionPrefix+"%").Scan(
+			`, info.ProjectEntityID, info.BranchID, decisionPrefix).Scan(
 				&stableID, &title, &rationale, &context, &author, &instant, &txID,
 			)
 			if err != nil {
