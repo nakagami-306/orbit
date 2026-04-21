@@ -151,3 +151,22 @@ export interface Task {
   projectId: string
   projectName: string
 }
+
+// --- Graph (all-branch topology) ---
+
+export interface GraphDecision {
+  id: string
+  title: string
+  author: string
+  instant: string
+  type: 'root' | 'normal' | 'merge'
+  branchId: string
+  branchName: string
+  sourceThreadId?: string
+}
+
+export interface GraphResponse {
+  decisions: GraphDecision[]
+  edges: DAGEdge[]
+  branches: BranchInfo[]
+}

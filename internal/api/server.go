@@ -28,6 +28,7 @@ type Server struct {
 	tasks    *domain.TaskService
 	branches *domain.BranchService
 	topics   *domain.TopicService
+	hub      *changeHub
 	mux      *http.ServeMux
 	server   *http.Server
 	addr     string
@@ -49,6 +50,7 @@ func NewServer(addr string) (*Server, error) {
 		tasks:    &domain.TaskService{DB: d, Projector: proj},
 		branches: &domain.BranchService{DB: d, Projector: proj},
 		topics:   &domain.TopicService{DB: d, Projector: proj},
+		hub:      newChangeHub(),
 		addr:     addr,
 	}
 
@@ -59,6 +61,8 @@ func NewServer(addr string) (*Server, error) {
 		Addr:    addr,
 		Handler: cors(s.mux),
 	}
+
+	s.startWatcher()
 
 	return s, nil
 }
@@ -91,6 +95,7 @@ func (s *Server) Shutdown() error {
 
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /api/events", s.handleSSE)
 
 	// Projects
 	s.mux.HandleFunc("GET /api/projects", s.handleListProjects)
@@ -98,6 +103,7 @@ func (s *Server) registerRoutes() {
 
 	// DAG
 	s.mux.HandleFunc("GET /api/projects/{id}/dag", s.handleGetDAG)
+	s.mux.HandleFunc("GET /api/projects/{id}/graph", s.handleGetGraph)
 
 	// Decisions
 	s.mux.HandleFunc("GET /api/projects/{id}/decisions/{did}", s.handleGetDecision)

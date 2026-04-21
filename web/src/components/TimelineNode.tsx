@@ -9,21 +9,24 @@ interface Props {
   onClickThread?: (threadId: string) => void
   isFirst: boolean
   isLast: boolean
+  isHead?: boolean
 }
 
-function TimelineNode({ item, isSelected, onClick, onClickThread, isFirst: _isFirst, isLast }: Props) {
+function TimelineNode({ item, isSelected, onClick, onClickThread, isFirst: _isFirst, isLast, isHead }: Props) {
   const {
     decision, relatedThreads, relatedTasks, relatedSections,
     milestone, sourceThread, parentCount, isRoot, parentTitles, childCount,
   } = item
 
-  const dotColor = isRoot
-    ? '#4a9eff'
-    : decision.type === 'merge'
-      ? '#a855f7'
-      : '#555'
+  const dotColor = isHead
+    ? '#a3e635'
+    : isRoot
+      ? '#4a9eff'
+      : decision.type === 'merge'
+        ? '#a855f7'
+        : '#555'
 
-  const dotSize = isRoot ? 14 : 10
+  const dotSize = isHead ? 14 : isRoot ? 14 : 10
   const hasEntities = relatedSections.length > 0 || relatedTasks.length > 0
     || relatedThreads.length > 0 || sourceThread
 
@@ -88,6 +91,13 @@ function TimelineNode({ item, isSelected, onClick, onClickThread, isFirst: _isFi
               <span style={{ fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.3, color: '#e0e0e0' }}>
                 {decision.title}
               </span>
+              {isHead && (
+                <span style={{
+                  fontSize: '0.6rem', padding: '1px 5px', borderRadius: '3px',
+                  background: '#2a3a1a', color: '#a3e635',
+                  fontWeight: 700,
+                }}>HEAD</span>
+              )}
               {isRoot && (
                 <span style={{
                   fontSize: '0.6rem', padding: '1px 5px', borderRadius: '3px',

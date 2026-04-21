@@ -1226,3 +1226,160 @@ func joinStrings(parts []string, sep string) string {
 	}
 	return result
 }
+
+// --- Graph (all-branch topology) ---
+
+func (s *Server) handleGetGraph(w http.ResponseWriter, r *http.Request) {
+	projectID, err := s.resolveProjectID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	conn := s.db.Conn()
+
+	// All decisions across all branches
+	type graphNode struct {
+		ID             string  `json:"id"`
+		Title          string  `json:"title"`
+		Author         string  `json:"author"`
+		Instant        string  `json:"instant"`
+		Type           string  `json:"type"`
+		BranchID       string  `json:"branchId"`
+		BranchName     string  `json:"branchName"`
+		SourceThreadID *string `json:"sourceThreadId,omitempty"`
+	}
+
+	rows, err := conn.Query(`
+		SELECT d.stable_id, d.title, COALESCE(d.author,''), d.instant,
+		       d.source_thread_id, d.branch_id,
+		       b.stable_id, COALESCE(b.name,'main'), b.is_main
+		FROM p_decisions d
+		JOIN p_branches b ON d.branch_id = b.entity_id
+		WHERE d.project_id = ?
+		ORDER BY d.tx_id ASC
+	`, projectID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	nodes := make([]graphNode, 0)
+	entityToStable := make(map[int64]string)
+
+	for rows.Next() {
+		var n graphNode
+		var sourceThreadID sql.NullInt64
+		var branchEntityID int64
+		var isMain int
+		if err := rows.Scan(&n.ID, &n.Title, &n.Author, &n.Instant,
+			&sourceThreadID, &branchEntityID, &n.BranchID, &n.BranchName, &isMain); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if sourceThreadID.Valid {
+			var sid string
+			conn.QueryRow("SELECT stable_id FROM entities WHERE id = ?", sourceThreadID.Int64).Scan(&sid)
+			if sid != "" {
+				n.SourceThreadID = &sid
+			}
+		}
+		n.Type = "normal"
+		nodes = append(nodes, n)
+	}
+
+	// Build entity_id -> stable_id for all decisions in this project
+	mapRows, err := conn.Query(
+		"SELECT entity_id, stable_id FROM p_decisions WHERE project_id = ?", projectID,
+	)
+	if err == nil {
+		defer mapRows.Close()
+		for mapRows.Next() {
+			var eid int64
+			var sid string
+			mapRows.Scan(&eid, &sid)
+			entityToStable[eid] = sid
+		}
+	}
+
+	// Edges across all branches
+	type graphEdge struct {
+		Source string `json:"source"`
+		Target string `json:"target"`
+	}
+	edges := make([]graphEdge, 0)
+	parentCounts := make(map[string]int)
+
+	edgeRows, err := conn.Query(`
+		SELECT dp.decision_id, dp.parent_id
+		FROM p_decision_parents dp
+		JOIN p_decisions d ON dp.decision_id = d.entity_id
+		WHERE d.project_id = ?
+	`, projectID)
+	if err == nil {
+		defer edgeRows.Close()
+		for edgeRows.Next() {
+			var decID, parentID int64
+			edgeRows.Scan(&decID, &parentID)
+			source := entityToStable[parentID]
+			target := entityToStable[decID]
+			if source != "" && target != "" {
+				edges = append(edges, graphEdge{Source: source, Target: target})
+				parentCounts[target]++
+			}
+		}
+	}
+
+	// Classify node types
+	childSet := make(map[string]bool)
+	for _, e := range edges {
+		childSet[e.Target] = true
+		if parentCounts[e.Target] >= 2 {
+			// will mark as merge below
+		}
+	}
+	for i := range nodes {
+		if parentCounts[nodes[i].ID] >= 2 {
+			nodes[i].Type = "merge"
+		} else if !childSet[nodes[i].ID] {
+			nodes[i].Type = "root"
+		}
+	}
+
+	// Branches
+	type branchInfo struct {
+		ID             string  `json:"id"`
+		Name           string  `json:"name"`
+		IsMain         bool    `json:"isMain"`
+		HeadDecisionID *string `json:"headDecisionId"`
+		Status         string  `json:"status"`
+	}
+	branchList := make([]branchInfo, 0)
+	branchRows, err := conn.Query(`
+		SELECT b.stable_id, COALESCE(b.name,''), b.is_main, b.head_decision_id, b.status
+		FROM p_branches b WHERE b.project_id = ?
+	`, projectID)
+	if err == nil {
+		defer branchRows.Close()
+		for branchRows.Next() {
+			var b branchInfo
+			var isMain int
+			var headID sql.NullInt64
+			branchRows.Scan(&b.ID, &b.Name, &isMain, &headID, &b.Status)
+			b.IsMain = isMain == 1
+			if headID.Valid {
+				if sid, ok := entityToStable[headID.Int64]; ok {
+					b.HeadDecisionID = &sid
+				}
+			}
+			branchList = append(branchList, b)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"decisions": nodes,
+		"edges":     edges,
+		"branches":  branchList,
+	})
+}

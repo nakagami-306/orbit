@@ -1,22 +1,48 @@
-import { useEffect, useState, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { fetchJSON, type DAGResponse, type ProjectDetail, type EntityNode, type BranchInfo, type TopicSummary } from '../api/client'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
+import { fetchJSON, type DAGResponse, type ProjectDetail, type EntityNode, type BranchInfo, type TopicSummary, type GraphResponse } from '../api/client'
+import { useSSE } from '../hooks/useSSE'
 import Timeline from '../components/Timeline'
+import BranchGraph from '../components/BranchGraph'
 import DetailPanel, { type PanelTarget } from '../components/DetailPanel'
 import StateView from '../components/StateView'
 import ThreadList from '../components/ThreadList'
 
-type Tab = 'timeline' | 'state' | 'threads' | 'tasks'
+type Tab = 'graph' | 'timeline' | 'state' | 'threads' | 'tasks'
+const VALID_TABS: Tab[] = ['graph', 'timeline', 'state', 'threads', 'tasks']
+
+function isValidTab(s: string | null): s is Tab {
+  return s !== null && VALID_TABS.includes(s as Tab)
+}
 
 export default function ProjectView() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Restore state from URL
+  const urlTab = searchParams.get('tab')
+  const urlBranch = searchParams.get('branch') || ''
+
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [dag, setDag] = useState<DAGResponse | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('timeline')
+  const [graphData, setGraphData] = useState<GraphResponse | null>(null)
+  const [activeTab, setActiveTab] = useState<Tab>(isValidTab(urlTab) ? urlTab : 'graph')
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null)
   const [topics, setTopics] = useState<TopicSummary[]>([])
-  const [selectedBranch, setSelectedBranch] = useState<string>('')
+  const [selectedBranch, setSelectedBranch] = useState<string>(urlBranch)
   const [error, setError] = useState('')
+
+  // Keep a ref to selectedBranch for SSE callback
+  const branchRef = useRef(selectedBranch)
+  branchRef.current = selectedBranch
+
+  // Sync tab/branch to URL (without full navigation)
+  const updateURL = useCallback((tab: Tab, branch: string) => {
+    const params: Record<string, string> = {}
+    if (tab !== 'graph') params.tab = tab
+    if (branch) params.branch = branch
+    setSearchParams(params, { replace: true })
+  }, [setSearchParams])
 
   const loadDAG = useCallback((branchName?: string) => {
     if (!id) return
@@ -26,19 +52,52 @@ export default function ProjectView() {
       .catch(e => setError(e.message))
   }, [id])
 
-  useEffect(() => {
+  const loadProject = useCallback(() => {
     if (!id) return
     fetchJSON<ProjectDetail>(`/api/projects/${id}`)
       .then(setProject)
       .catch(e => setError(e.message))
+  }, [id])
+
+  const loadTopics = useCallback(() => {
+    if (!id) return
     fetchJSON<TopicSummary[]>(`/api/projects/${id}/topics`)
       .then(setTopics)
       .catch(() => setTopics([]))
-    loadDAG()
-  }, [id, loadDAG])
+  }, [id])
+
+  const loadGraph = useCallback(() => {
+    if (!id) return
+    fetchJSON<GraphResponse>(`/api/projects/${id}/graph`)
+      .then(setGraphData)
+      .catch(() => setGraphData(null))
+  }, [id])
+
+  // Initial load
+  useEffect(() => {
+    loadProject()
+    loadTopics()
+    loadGraph()
+    loadDAG(selectedBranch || undefined)
+  }, [id, loadProject, loadTopics, loadGraph, loadDAG, selectedBranch])
+
+  // Real-time updates via SSE
+  const handleSSEChange = useCallback(() => {
+    loadProject()
+    loadTopics()
+    loadGraph()
+    loadDAG(branchRef.current || undefined)
+  }, [loadProject, loadTopics, loadGraph, loadDAG])
+
+  useSSE(handleSSEChange)
 
   // Close panel when switching tabs
   useEffect(() => { setPanelTarget(null) }, [activeTab])
+
+  const handleTabChange = useCallback((tab: Tab) => {
+    setActiveTab(tab)
+    updateURL(tab, selectedBranch)
+  }, [updateURL, selectedBranch])
 
   const selectDecision = useCallback((decisionId: string | null) => {
     setPanelTarget(decisionId ? { kind: 'decision', id: decisionId } : null)
@@ -55,12 +114,20 @@ export default function ProjectView() {
   const handleBranchChange = useCallback((branch: string) => {
     setSelectedBranch(branch)
     loadDAG(branch || undefined)
-  }, [loadDAG])
+    updateURL(activeTab, branch)
+  }, [loadDAG, updateURL, activeTab])
 
   const branches = dag?.branches || []
   const selectedDecisionId = panelTarget?.kind === 'decision' ? panelTarget.id : null
 
+  // Find head decision ID for current branch
+  const currentBranchInfo = branches.find(b =>
+    selectedBranch ? b.name === selectedBranch : b.isMain
+  )
+  const headDecisionId = currentBranchInfo?.headDecisionId || null
+
   const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: 'graph', label: 'Graph', count: graphData?.decisions.length },
     { key: 'timeline', label: 'Timeline', count: dag?.nodes.length },
     { key: 'state', label: 'State', count: dag?.sections?.length },
     { key: 'threads', label: 'Threads', count: dag?.threads?.length },
@@ -83,13 +150,16 @@ export default function ProjectView() {
           <span style={{ color: '#555' }}>/</span>
           <h2 style={{ margin: 0, fontSize: '1.1rem', color: '#e0e0e0' }}>{project?.name || '...'}</h2>
 
-          {/* Branch selector */}
-          {branches.length > 1 && (
+          {/* Branch selector — always visible */}
+          <div style={{ marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+              <path d="M5 3v6.5a2.5 2.5 0 005 0V8h1a2 2 0 002-2V3M5 3H3M5 3h2M13 3h-2M13 3h2" stroke="#888" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="5" cy="13" r="1.5" stroke="#888" strokeWidth="1.5"/>
+            </svg>
             <select
               value={selectedBranch}
               onChange={e => handleBranchChange(e.target.value)}
               style={{
-                marginLeft: '12px',
                 background: '#2a2a2a',
                 border: '1px solid #444',
                 color: '#ccc',
@@ -99,13 +169,28 @@ export default function ProjectView() {
                 cursor: 'pointer',
               }}
             >
+              {branches.length === 0 && (
+                <option value="">main</option>
+              )}
               {branches.map((b: BranchInfo) => (
                 <option key={b.id} value={b.isMain ? '' : b.name}>
-                  {b.name || '(main)'}{b.isMain ? ' (main)' : ''}
+                  {b.name || 'main'}{b.isMain ? ' (main)' : ''}
+                  {b.status === 'merged' ? ' [merged]' : b.status === 'abandoned' ? ' [abandoned]' : ''}
                 </option>
               ))}
             </select>
-          )}
+            {currentBranchInfo && !currentBranchInfo.isMain && (
+              <span style={{
+                fontSize: '0.65rem',
+                padding: '1px 6px',
+                borderRadius: '3px',
+                background: currentBranchInfo.status === 'active' ? '#1a2a3a' : currentBranchInfo.status === 'merged' ? '#1a2a1a' : '#2a2020',
+                color: currentBranchInfo.status === 'active' ? '#4a9eff' : currentBranchInfo.status === 'merged' ? '#4c4' : '#f66',
+              }}>
+                {currentBranchInfo.status}
+              </span>
+            )}
+          </div>
         </div>
 
         {project && (
@@ -124,7 +209,7 @@ export default function ProjectView() {
           {tabs.map(tab => {
             const isActive = activeTab === tab.key
             return (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
+              <button key={tab.key} onClick={() => handleTabChange(tab.key)} style={{
                 background: isActive ? '#2a2a2a' : 'transparent',
                 border: 'none',
                 borderBottom: isActive ? '2px solid #4a9eff' : '2px solid transparent',
@@ -151,12 +236,22 @@ export default function ProjectView() {
       {/* Content area */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, overflow: 'hidden' }}>
+          {activeTab === 'graph' && graphData && (
+            <BranchGraph
+              graph={graphData}
+              onSelectDecision={id => selectDecision(id)}
+              selectedDecisionId={selectedDecisionId}
+            />
+          )}
           {activeTab === 'timeline' && dag && (
             <Timeline
               dag={dag}
               selectedDecisionId={selectedDecisionId}
               onSelectDecision={selectDecision}
               onSelectThread={selectThread}
+              headDecisionId={headDecisionId}
+              onSwitchBranch={handleBranchChange}
+              currentBranch={selectedBranch}
             />
           )}
           {activeTab === 'state' && dag && <StateView sections={dag.sections || []} />}
@@ -170,7 +265,7 @@ export default function ProjectView() {
             />
           )}
           {activeTab === 'tasks' && dag && <TaskListInline tasks={dag.tasks || []} />}
-          {!dag && <div style={{ padding: '2rem', color: '#888', textAlign: 'center' }}>Loading...</div>}
+          {!dag && !graphData && <div style={{ padding: '2rem', color: '#888', textAlign: 'center' }}>Loading...</div>}
         </div>
 
         {panelTarget && id && (

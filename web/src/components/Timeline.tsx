@@ -7,6 +7,9 @@ interface Props {
   selectedDecisionId: string | null
   onSelectDecision: (id: string | null) => void
   onSelectThread?: (threadId: string) => void
+  headDecisionId?: string | null
+  onSwitchBranch?: (branchName: string) => void
+  currentBranch?: string
 }
 
 export interface ProcessedDecision {
@@ -22,7 +25,7 @@ export interface ProcessedDecision {
   childCount: number
 }
 
-export default function Timeline({ dag, selectedDecisionId, onSelectDecision, onSelectThread }: Props) {
+export default function Timeline({ dag, selectedDecisionId, onSelectDecision, onSelectThread, headDecisionId, onSwitchBranch, currentBranch }: Props) {
   const [sortNewestFirst, setSortNewestFirst] = useState(true)
 
   const processed = useMemo(() => {
@@ -119,8 +122,6 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision, on
   }, [dag, sortNewestFirst])
 
   const branches = dag.branches || []
-  const mainBranch = branches.find(b => b.isMain)
-  const otherBranches = branches.filter(b => !b.isMain)
 
   return (
     <div style={{ height: '100%', overflow: 'auto', padding: '1rem 1.5rem' }}>
@@ -137,25 +138,29 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision, on
           <div style={{ fontSize: '0.8rem', color: '#888' }}>
             {processed.length} decision{processed.length !== 1 ? 's' : ''}
           </div>
-          {/* Branch indicators inline */}
+          {/* Branch indicators inline — clickable to switch */}
           {branches.length > 1 && (
             <div style={{ display: 'flex', gap: '6px' }}>
-              {mainBranch && (
-                <span style={{
-                  fontSize: '0.65rem', padding: '1px 6px', borderRadius: '3px',
-                  background: '#1a2a3a', color: '#4a9eff', border: '1px solid #2a3a4a',
-                }}>
-                  {mainBranch.name || 'main'}
-                </span>
-              )}
-              {otherBranches.map(b => (
-                <span key={b.id} style={{
-                  fontSize: '0.65rem', padding: '1px 6px', borderRadius: '3px',
-                  background: '#2a2a2a', color: '#888', border: '1px solid #333',
-                }}>
-                  {b.name || '(unnamed)'}
-                </span>
-              ))}
+              {branches.map(b => {
+                const name = b.name || 'main'
+                const branchValue = b.isMain ? '' : b.name
+                const isActive = b.isMain ? !currentBranch : currentBranch === b.name
+                return (
+                  <span
+                    key={b.id}
+                    onClick={() => onSwitchBranch?.(branchValue)}
+                    style={{
+                      fontSize: '0.65rem', padding: '1px 6px', borderRadius: '3px',
+                      background: isActive ? '#1a2a3a' : '#2a2a2a',
+                      color: isActive ? '#4a9eff' : '#888',
+                      border: isActive ? '1px solid #2a3a4a' : '1px solid #333',
+                      cursor: onSwitchBranch ? 'pointer' : 'default',
+                    }}
+                  >
+                    {name}
+                  </span>
+                )
+              })}
             </div>
           )}
         </div>
@@ -200,6 +205,7 @@ export default function Timeline({ dag, selectedDecisionId, onSelectDecision, on
             onClickThread={onSelectThread}
             isFirst={idx === 0}
             isLast={idx === processed.length - 1}
+            isHead={headDecisionId === item.decision.id}
           />
         ))}
 
