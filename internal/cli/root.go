@@ -96,6 +96,11 @@ func NewRootCmd() *cobra.Command {
 				DB:        d,
 				Projector: &projection.Projector{},
 			}
+
+			// Auto-scan: pull-mode git scan on every command.
+			// No-op if cwd is not inside a git repo or no Orbit project resolves.
+			// Errors are logged to stderr but never block the actual command.
+			autoScan(cmd, app)
 			return nil
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -128,8 +133,32 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(newDiffCmd(app))
 	root.AddCommand(newLogCmd(app))
 	root.AddCommand(newUICmd(app))
+	root.AddCommand(newCommitCmd(app))
+	root.AddCommand(newSyncCmd(app))
 
 	return root
+}
+
+// autoScan runs the git commit scan as a side-effect of any orbit command.
+// Skipped for `sync` (which already scans), `init` (no project yet), and `ui`.
+// Failures are logged but never propagated.
+func autoScan(cmd *cobra.Command, app *App) {
+	switch cmd.Name() {
+	case "sync", "init":
+		return
+	}
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Name() == "ui" {
+			return
+		}
+	}
+	info, err := app.resolveProject()
+	if err != nil {
+		return
+	}
+	if _, err := runScanForProject(cmd.Context(), app, info.ProjectEntityID); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: auto-scan failed: %v\n", err)
+	}
 }
 
 // resolveProject resolves the project entity ID and branch ID from flags or cwd.

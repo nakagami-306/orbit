@@ -1383,3 +1383,108 @@ func (s *Server) handleGetGraph(w http.ResponseWriter, r *http.Request) {
 		"branches":  branchList,
 	})
 }
+
+// --- Git integration: commits & repos ---
+
+type commitResp struct {
+	ID         string   `json:"id"`
+	SHA        string   `json:"sha"`
+	Message    string   `json:"message"`
+	Author     string   `json:"author"`
+	AuthoredAt string   `json:"authored_at"`
+	Parents    []string `json:"parents"`
+	TaskID     *string  `json:"task_id,omitempty"`
+	RepoID     string   `json:"repo_id"`
+	Status     string   `json:"status"`
+}
+
+func (s *Server) handleListCommits(w http.ResponseWriter, r *http.Request) {
+	projectID, err := s.resolveProjectID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	var taskFilter *int64
+	if t := r.URL.Query().Get("task"); t != "" {
+		var taskEntityID int64
+		if err := s.db.Conn().QueryRow(
+			"SELECT entity_id FROM p_tasks WHERE project_id = ? AND stable_id = ?",
+			projectID, t,
+		).Scan(&taskEntityID); err == nil {
+			taskFilter = &taskEntityID
+		}
+	}
+
+	commits, err := s.commits.ListCommits(r.Context(), projectID, taskFilter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Map entity_id -> stable_id for task and repo references
+	entityToStable := map[int64]string{}
+	rows, _ := s.db.Conn().Query("SELECT id, stable_id FROM entities")
+	for rows.Next() {
+		var id int64
+		var sid string
+		rows.Scan(&id, &sid)
+		entityToStable[id] = sid
+	}
+	rows.Close()
+
+	out := make([]commitResp, 0, len(commits))
+	for _, c := range commits {
+		cr := commitResp{
+			ID:         c.StableID,
+			SHA:        c.SHA,
+			Message:    c.Message,
+			Author:     c.Author,
+			AuthoredAt: c.AuthoredAt,
+			Parents:    c.Parents,
+			RepoID:     entityToStable[c.RepoID],
+			Status:     c.Status,
+		}
+		if c.TaskID != nil {
+			tid := entityToStable[*c.TaskID]
+			cr.TaskID = &tid
+		}
+		out = append(out, cr)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+type repoResp struct {
+	ID        string `json:"id"`
+	UUID      string `json:"uuid"`
+	RemoteURL string `json:"remote_url"`
+}
+
+func (s *Server) handleListRepos(w http.ResponseWriter, r *http.Request) {
+	projectID, err := s.resolveProjectID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	rows, err := s.db.Conn().QueryContext(r.Context(),
+		"SELECT stable_id, uuid, COALESCE(remote_url,'') FROM p_repos WHERE project_id = ? ORDER BY entity_id",
+		projectID,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	out := []repoResp{}
+	for rows.Next() {
+		var rr repoResp
+		if err := rows.Scan(&rr.ID, &rr.UUID, &rr.RemoteURL); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		out = append(out, rr)
+	}
+	writeJSON(w, http.StatusOK, out)
+}

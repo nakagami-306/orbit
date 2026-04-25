@@ -28,6 +28,8 @@ type Server struct {
 	tasks    *domain.TaskService
 	branches *domain.BranchService
 	topics   *domain.TopicService
+	commits  *domain.CommitService
+	repos    *domain.RepoService
 	hub      *changeHub
 	mux      *http.ServeMux
 	server   *http.Server
@@ -50,6 +52,8 @@ func NewServer(addr string) (*Server, error) {
 		tasks:    &domain.TaskService{DB: d, Projector: proj},
 		branches: &domain.BranchService{DB: d, Projector: proj},
 		topics:   &domain.TopicService{DB: d, Projector: proj},
+		commits:  &domain.CommitService{DB: d, Projector: proj},
+		repos:    &domain.RepoService{DB: d, Projector: proj},
 		hub:      newChangeHub(),
 		addr:     addr,
 	}
@@ -132,6 +136,10 @@ func (s *Server) registerRoutes() {
 	// Tasks (cross-project)
 	s.mux.HandleFunc("GET /api/tasks", s.handleListTasks)
 	s.mux.HandleFunc("PATCH /api/tasks/{id}", s.handleUpdateTask)
+
+	// Git integration
+	s.mux.HandleFunc("GET /api/projects/{id}/commits", s.handleListCommits)
+	s.mux.HandleFunc("GET /api/projects/{id}/repos", s.handleListRepos)
 
 	// Static file serving (embedded frontend)
 	if useEmbed {

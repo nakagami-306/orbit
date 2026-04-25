@@ -2,10 +2,12 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/nakagami-306/orbit/internal/domain"
+	"github.com/nakagami-306/orbit/internal/git"
 	"github.com/nakagami-306/orbit/internal/projection"
 	"github.com/spf13/cobra"
 )
@@ -18,6 +20,8 @@ func newTaskCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newTaskCreateCmd(app))
 	cmd.AddCommand(newTaskListCmd(app))
 	cmd.AddCommand(newTaskUpdateCmd(app))
+	cmd.AddCommand(newTaskStartCmd(app))
+	cmd.AddCommand(newTaskDoneCmd(app))
 	return cmd
 }
 
@@ -125,6 +129,104 @@ func newTaskListCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&statusFilter, "status", "", "Filter by status")
 	cmd.Flags().StringVar(&assigneeFilter, "assignee", "", "Filter by assignee")
+	return cmd
+}
+
+func newTaskStartCmd(app *App) *cobra.Command {
+	var branchOverride string
+
+	cmd := &cobra.Command{
+		Use:   "start <task-id>",
+		Short: "Start a task and bind it to the current git branch",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			info, err := app.resolveProject()
+			if err != nil {
+				return err
+			}
+			svc := taskService(app)
+			task, err := svc.FindTask(cmd.Context(), info.ProjectEntityID, args[0])
+			if err != nil {
+				return err
+			}
+
+			branch := branchOverride
+			if branch == "" {
+				cwd, _ := os.Getwd()
+				branch, err = git.CurrentBranch(cwd)
+				if err != nil {
+					if errors.Is(err, git.ErrDetachedHEAD) {
+						return fmt.Errorf("HEAD is detached; pass --git-branch to override or check out a branch first")
+					}
+					return fmt.Errorf("detect git branch: %w", err)
+				}
+			}
+
+			if err := svc.StartTask(cmd.Context(), task.EntityID, branch); err != nil {
+				return err
+			}
+
+			if app.Format == "json" {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
+					"action": "started", "task_id": task.StableID, "git_branch": branch,
+				})
+			}
+			fmt.Printf("Task %q started on branch %s\n", task.Title, branch)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&branchOverride, "git-branch", "", "Override the auto-detected git branch name")
+	return cmd
+}
+
+func newTaskDoneCmd(app *App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "done <task-id>",
+		Short: "Mark a task done and scan its branch for commits",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			info, err := app.resolveProject()
+			if err != nil {
+				return err
+			}
+			svc := taskService(app)
+			task, err := svc.FindTask(cmd.Context(), info.ProjectEntityID, args[0])
+			if err != nil {
+				return err
+			}
+
+			branch, err := svc.DoneTask(cmd.Context(), task.EntityID)
+			if err != nil {
+				return err
+			}
+
+			// Branch-scoped scan: ensure commits on this branch get bound before
+			// the developer deletes the branch.
+			scanResult, scanErr := runScanForProject(cmd.Context(), app, info.ProjectEntityID)
+
+			if app.Format == "json" {
+				out := map[string]any{
+					"action": "done", "task_id": task.StableID, "git_branch": branch,
+				}
+				if scanErr == nil {
+					out["scan"] = scanResult
+				}
+				return json.NewEncoder(os.Stdout).Encode(out)
+			}
+			fmt.Printf("Task %q done", task.Title)
+			if branch != "" {
+				fmt.Printf(" (branch %s)", branch)
+			}
+			fmt.Println()
+			if scanErr == nil && scanResult != nil {
+				if scanResult.Added > 0 || scanResult.Bound > 0 || scanResult.Orphaned > 0 {
+					fmt.Printf("Scan: +%d added, +%d bound, %d orphaned\n",
+						scanResult.Added, scanResult.Bound, scanResult.Orphaned)
+				}
+			}
+			return nil
+		},
+	}
 	return cmd
 }
 

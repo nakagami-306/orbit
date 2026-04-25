@@ -22,6 +22,7 @@ type Task struct {
 	Assignee    string
 	SourceType  string
 	SourceID    *int64
+	GitBranch   string
 }
 
 // TaskService handles task operations.
@@ -161,12 +162,115 @@ func (s *TaskService) UpdateTask(ctx context.Context, taskEntityID int64, newSta
 // FindTask finds a task by stable ID prefix.
 func (s *TaskService) FindTask(ctx context.Context, projectEntityID int64, prefix string) (*Task, error) {
 	var t Task
+	var gitBranch sql.NullString
 	err := s.DB.Conn().QueryRowContext(ctx,
-		"SELECT entity_id, stable_id, project_id, title, COALESCE(description,''), status, COALESCE(priority,'medium'), COALESCE(assignee,'') FROM p_tasks WHERE project_id = ? AND stable_id = ?",
+		"SELECT entity_id, stable_id, project_id, title, COALESCE(description,''), status, COALESCE(priority,'medium'), COALESCE(assignee,''), git_branch FROM p_tasks WHERE project_id = ? AND stable_id = ?",
 		projectEntityID, prefix,
-	).Scan(&t.EntityID, &t.StableID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.Assignee)
+	).Scan(&t.EntityID, &t.StableID, &t.ProjectID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.Assignee, &gitBranch)
 	if err != nil {
 		return nil, fmt.Errorf("task %q not found: %w", prefix, err)
 	}
+	if gitBranch.Valid {
+		t.GitBranch = gitBranch.String
+	}
 	return &t, nil
+}
+
+// StartTask transitions a task to in-progress and binds it to a git branch.
+// It enforces the 1 active task : 1 branch invariant per project.
+// branchName must be non-empty (detached HEAD must be rejected by the caller).
+func (s *TaskService) StartTask(ctx context.Context, taskEntityID int64, branchName string) error {
+	if branchName == "" {
+		return fmt.Errorf("git branch name is required (detached HEAD?)")
+	}
+
+	return s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
+		var projectID int64
+		if err := sqlTx.QueryRow("SELECT project_id FROM p_tasks WHERE entity_id = ?", taskEntityID).Scan(&projectID); err != nil {
+			return fmt.Errorf("task lookup: %w", err)
+		}
+
+		// Reject if another active task already owns this branch in the same project.
+		var conflictID int64
+		err := sqlTx.QueryRow(
+			"SELECT entity_id FROM p_tasks WHERE project_id = ? AND git_branch = ? AND status IN ('todo','in-progress') AND entity_id != ? LIMIT 1",
+			projectID, branchName, taskEntityID,
+		).Scan(&conflictID)
+		if err == nil {
+			return fmt.Errorf("git branch %q is already owned by another active task (entity_id=%d)", branchName, conflictID)
+		}
+
+		var branchEntityID int64
+		sqlTx.QueryRow("SELECT entity_id FROM p_branches WHERE project_id = ? AND is_main = 1", projectID).Scan(&branchEntityID)
+
+		txID, err := eavt.BeginTx(sqlTx, nil, branchEntityID, "user")
+		if err != nil {
+			return err
+		}
+
+		state, _ := eavt.EntityState(sqlTx, taskEntityID)
+
+		// Status: → in-progress (validate transition from current state)
+		if currentVal, ok := state[eavt.AttrTaskStatus]; ok {
+			currentStatus, _ := currentVal.AsString()
+			if currentStatus != "in-progress" {
+				if err := ValidateTaskTransition(currentStatus, "in-progress"); err != nil {
+					return err
+				}
+				eavt.RetractDatom(sqlTx, taskEntityID, eavt.AttrTaskStatus, currentVal, txID)
+				eavt.AssertDatom(sqlTx, taskEntityID, eavt.AttrTaskStatus, eavt.NewEnum("in-progress"), txID)
+			}
+		} else {
+			eavt.AssertDatom(sqlTx, taskEntityID, eavt.AttrTaskStatus, eavt.NewEnum("in-progress"), txID)
+		}
+
+		// git_branch: assert (retract previous if any)
+		if old, ok := state[eavt.AttrTaskGitBranch]; ok {
+			eavt.RetractDatom(sqlTx, taskEntityID, eavt.AttrTaskGitBranch, old, txID)
+		}
+		eavt.AssertDatom(sqlTx, taskEntityID, eavt.AttrTaskGitBranch, eavt.NewString(branchName), txID)
+
+		return s.Projector.ApplyDatoms(sqlTx, taskEntityID, eavt.EntityTask, branchEntityID)
+	})
+}
+
+// DoneTask transitions a task to done and returns the git branch it was bound to
+// (so the caller can run a branch-scoped commit scan before the branch is deleted).
+func (s *TaskService) DoneTask(ctx context.Context, taskEntityID int64) (string, error) {
+	var gitBranch string
+
+	err := s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
+		var projectID int64
+		if err := sqlTx.QueryRow("SELECT project_id FROM p_tasks WHERE entity_id = ?", taskEntityID).Scan(&projectID); err != nil {
+			return fmt.Errorf("task lookup: %w", err)
+		}
+
+		var branchEntityID int64
+		sqlTx.QueryRow("SELECT entity_id FROM p_branches WHERE project_id = ? AND is_main = 1", projectID).Scan(&branchEntityID)
+
+		txID, err := eavt.BeginTx(sqlTx, nil, branchEntityID, "user")
+		if err != nil {
+			return err
+		}
+
+		state, _ := eavt.EntityState(sqlTx, taskEntityID)
+
+		if currentVal, ok := state[eavt.AttrTaskStatus]; ok {
+			currentStatus, _ := currentVal.AsString()
+			if currentStatus != "done" {
+				if err := ValidateTaskTransition(currentStatus, "done"); err != nil {
+					return err
+				}
+				eavt.RetractDatom(sqlTx, taskEntityID, eavt.AttrTaskStatus, currentVal, txID)
+				eavt.AssertDatom(sqlTx, taskEntityID, eavt.AttrTaskStatus, eavt.NewEnum("done"), txID)
+			}
+		}
+
+		if v, ok := state[eavt.AttrTaskGitBranch]; ok {
+			gitBranch, _ = v.AsString()
+		}
+
+		return s.Projector.ApplyDatoms(sqlTx, taskEntityID, eavt.EntityTask, branchEntityID)
+	})
+	return gitBranch, err
 }
