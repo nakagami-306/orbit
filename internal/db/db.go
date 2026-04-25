@@ -149,10 +149,45 @@ var migrations = []string{
 	);
 	CREATE INDEX IF NOT EXISTS idx_p_commits_task ON p_commits(task_id);
 	CREATE INDEX IF NOT EXISTS idx_p_commits_repo_sha ON p_commits(repo_id, sha);`,
+	// v4 → v5: Idempotent rescue for DBs that recorded user_version=4 without
+	// having actually applied the v3→v4 migration body (a corner case observed
+	// when older binaries pre-set user_version). Pure CREATE IF NOT EXISTS,
+	// no ALTER (the git_branch / repo_root columns are not safe to re-add
+	// here; if they're missing, the projector will fail loudly and the user
+	// can manually rebuild from the central DB).
+	`CREATE TABLE IF NOT EXISTS p_repos (
+	    entity_id   INTEGER PRIMARY KEY,
+	    stable_id   TEXT NOT NULL,
+	    project_id  INTEGER NOT NULL,
+	    uuid        TEXT NOT NULL UNIQUE,
+	    remote_url  TEXT,
+	    FOREIGN KEY (entity_id) REFERENCES entities(id),
+	    FOREIGN KEY (project_id) REFERENCES entities(id)
+	);
+	CREATE TABLE IF NOT EXISTS p_commits (
+	    entity_id    INTEGER PRIMARY KEY,
+	    stable_id    TEXT NOT NULL,
+	    project_id   INTEGER NOT NULL,
+	    repo_id      INTEGER NOT NULL,
+	    sha          TEXT NOT NULL,
+	    message      TEXT,
+	    author       TEXT,
+	    authored_at  TEXT,
+	    parents      TEXT,
+	    task_id      INTEGER,
+	    status       TEXT NOT NULL DEFAULT 'active',
+	    FOREIGN KEY (entity_id) REFERENCES entities(id),
+	    FOREIGN KEY (project_id) REFERENCES entities(id),
+	    FOREIGN KEY (repo_id) REFERENCES entities(id),
+	    FOREIGN KEY (task_id) REFERENCES entities(id),
+	    UNIQUE (repo_id, sha)
+	);
+	CREATE INDEX IF NOT EXISTS idx_p_commits_task ON p_commits(task_id);
+	CREATE INDEX IF NOT EXISTS idx_p_commits_repo_sha ON p_commits(repo_id, sha);`,
 }
 
 // schemaVersion is the current schema version. Must equal len(migrations).
-const schemaVersion = 4
+const schemaVersion = 5
 
 func (d *DB) migrate() error {
 	// Check if this is a brand-new database (no tables at all)

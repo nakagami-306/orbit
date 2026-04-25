@@ -107,9 +107,12 @@ func BranchTips(dir string) (map[string]string, error) {
 }
 
 // CommitInfoFor returns metadata for a single commit.
-// Format: <SHA>\n<parent SHAs space-separated>\n<author name <email>>\n<authored ISO-8601>\n<subject>
+//
+// Uses a printable Unicode separator rather than \x00 because Windows'
+// CreateProcess rejects command-line arguments containing NULL bytes.
+// The chosen sequence is unlikely to appear in real commit messages.
 func CommitInfoFor(dir, sha string) (CommitInfo, error) {
-	const sep = "\x00"
+	const sep = "\u241F" // SYMBOL FOR UNIT SEPARATOR
 	format := strings.Join([]string{"%H", "%P", "%an <%ae>", "%aI", "%s"}, sep)
 	out, err := run(dir, "show", "--no-patch", "--format="+format, sha)
 	if err != nil {

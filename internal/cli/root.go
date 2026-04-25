@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -140,11 +141,16 @@ func NewRootCmd() *cobra.Command {
 }
 
 // autoScan runs the git commit scan as a side-effect of any orbit command.
-// Skipped for `sync` (which already scans), `init` (no project yet), and `ui`.
+// Skipped for `sync` (which already scans), `init` (no project yet), `ui`,
+// and when a `--project` flag is set (which decouples cwd from the project,
+// so scanning the cwd's git tree against an unrelated project is meaningless).
 // Failures are logged but never propagated.
 func autoScan(cmd *cobra.Command, app *App) {
 	switch cmd.Name() {
 	case "sync", "init":
+		return
+	}
+	if app.ProjectFlag != "" {
 		return
 	}
 	for c := cmd; c != nil; c = c.Parent() {
@@ -164,11 +170,12 @@ func autoScan(cmd *cobra.Command, app *App) {
 // resolveProject resolves the project entity ID and branch ID from flags or cwd.
 func (app *App) resolveProject() (*workspace.Info, error) {
 	if app.ProjectFlag != "" {
-		p, err := app.Service.GetProjectByName(nil, app.ProjectFlag)
+		ctx := context.Background()
+		p, err := app.Service.GetProjectByName(ctx, app.ProjectFlag)
 		if err != nil {
 			return nil, err
 		}
-		branchID, err := app.Service.GetMainBranch(nil, p.EntityID)
+		branchID, err := app.Service.GetMainBranch(ctx, p.EntityID)
 		if err != nil {
 			return nil, err
 		}
