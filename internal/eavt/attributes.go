@@ -72,6 +72,29 @@ const (
 	AttrTaskSourceID    = "task/source_id"
 	AttrTaskDueDate     = "task/due_date"
 	AttrTaskTags        = "task/tags"
+	AttrTaskGitBranch   = "task/git_branch"
+)
+
+// Repo attributes
+const (
+	AttrRepoUUID      = "repo/uuid"
+	AttrRepoRemoteURL = "repo/remote_url"
+	AttrRepoProjectID = "repo/project_id"
+)
+
+// Commit attributes
+// Note: AttrCommitParents stores a JSON-encoded array of parent SHA strings
+// as a TypeString value, since EAVT lacks a native string-set type.
+const (
+	AttrCommitSha        = "commit/sha"
+	AttrCommitProjectID  = "commit/project_id"
+	AttrCommitRepoID     = "commit/repo_id"
+	AttrCommitMessage    = "commit/message"
+	AttrCommitAuthor     = "commit/author"
+	AttrCommitAuthoredAt = "commit/authored_at"
+	AttrCommitParents    = "commit/parents"
+	AttrCommitTaskID     = "commit/task_id"
+	AttrCommitStatus     = "commit/status"
 )
 
 // Milestone attributes

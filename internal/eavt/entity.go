@@ -21,6 +21,8 @@ const (
 	EntityBranch      EntityType = "branch"
 	EntityTopic       EntityType = "topic"
 	EntityTopicThread EntityType = "topic_thread"
+	EntityRepo        EntityType = "repo"
+	EntityCommit      EntityType = "commit"
 )
 
 // NewStableID generates a new UUID v7 for use as a stable entity identifier.

@@ -117,10 +117,42 @@ var migrations = []string{
 	DROP TABLE _p_branches_backup;`,
 	// v2 → v3: add source_topic_id to p_decisions
 	`ALTER TABLE p_decisions ADD COLUMN source_topic_id INTEGER;`,
+	// v3 → v4: Git integration data model (Repo + Commit entities, task/git_branch, workspaces.repo_root)
+	`ALTER TABLE p_tasks ADD COLUMN git_branch TEXT;
+	ALTER TABLE workspaces ADD COLUMN repo_root TEXT;
+	CREATE TABLE IF NOT EXISTS p_repos (
+	    entity_id   INTEGER PRIMARY KEY,
+	    stable_id   TEXT NOT NULL,
+	    project_id  INTEGER NOT NULL,
+	    uuid        TEXT NOT NULL UNIQUE,
+	    remote_url  TEXT,
+	    FOREIGN KEY (entity_id) REFERENCES entities(id),
+	    FOREIGN KEY (project_id) REFERENCES entities(id)
+	);
+	CREATE TABLE IF NOT EXISTS p_commits (
+	    entity_id    INTEGER PRIMARY KEY,
+	    stable_id    TEXT NOT NULL,
+	    project_id   INTEGER NOT NULL,
+	    repo_id      INTEGER NOT NULL,
+	    sha          TEXT NOT NULL,
+	    message      TEXT,
+	    author       TEXT,
+	    authored_at  TEXT,
+	    parents      TEXT,
+	    task_id      INTEGER,
+	    status       TEXT NOT NULL DEFAULT 'active',
+	    FOREIGN KEY (entity_id) REFERENCES entities(id),
+	    FOREIGN KEY (project_id) REFERENCES entities(id),
+	    FOREIGN KEY (repo_id) REFERENCES entities(id),
+	    FOREIGN KEY (task_id) REFERENCES entities(id),
+	    UNIQUE (repo_id, sha)
+	);
+	CREATE INDEX IF NOT EXISTS idx_p_commits_task ON p_commits(task_id);
+	CREATE INDEX IF NOT EXISTS idx_p_commits_repo_sha ON p_commits(repo_id, sha);`,
 }
 
 // schemaVersion is the current schema version. Must equal len(migrations).
-const schemaVersion = 3
+const schemaVersion = 4
 
 func (d *DB) migrate() error {
 	// Check if this is a brand-new database (no tables at all)

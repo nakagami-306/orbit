@@ -109,6 +109,14 @@ func TestMigrateExistingDB(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	// Simulate a v0 legacy DB by reverting all migrations
+	// v3 → v0: drop git integration objects
+	d.Conn().Exec("DROP INDEX IF EXISTS idx_p_commits_repo_sha")
+	d.Conn().Exec("DROP INDEX IF EXISTS idx_p_commits_task")
+	d.Conn().Exec("DROP TABLE IF EXISTS p_commits")
+	d.Conn().Exec("DROP TABLE IF EXISTS p_repos")
+	d.Conn().Exec("ALTER TABLE p_tasks DROP COLUMN git_branch")
+	d.Conn().Exec("ALTER TABLE workspaces DROP COLUMN repo_root")
+	// v2 → v0: drop topic + source_topic_id
 	d.Conn().Exec("DROP TABLE IF EXISTS topic_threads")
 	d.Conn().Exec("DROP TABLE IF EXISTS p_topics")
 	d.Conn().Exec("ALTER TABLE p_decisions DROP COLUMN source_topic_id")

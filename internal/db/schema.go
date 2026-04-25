@@ -188,6 +188,7 @@ CREATE TABLE p_tasks (
     source_id   INTEGER,
     due_date    TEXT,
     tags        TEXT,
+    git_branch  TEXT,
     FOREIGN KEY (entity_id) REFERENCES entities(id)
 );
 
@@ -247,6 +248,38 @@ CREATE TABLE p_conflict_sides (
     FOREIGN KEY (conflict_id) REFERENCES entities(id)
 );
 
+CREATE TABLE p_repos (
+    entity_id   INTEGER PRIMARY KEY,
+    stable_id   TEXT NOT NULL,
+    project_id  INTEGER NOT NULL,
+    uuid        TEXT NOT NULL UNIQUE,
+    remote_url  TEXT,
+    FOREIGN KEY (entity_id) REFERENCES entities(id),
+    FOREIGN KEY (project_id) REFERENCES entities(id)
+);
+
+CREATE TABLE p_commits (
+    entity_id    INTEGER PRIMARY KEY,
+    stable_id    TEXT NOT NULL,
+    project_id   INTEGER NOT NULL,
+    repo_id      INTEGER NOT NULL,
+    sha          TEXT NOT NULL,
+    message      TEXT,
+    author       TEXT,
+    authored_at  TEXT,
+    parents      TEXT,
+    task_id      INTEGER,
+    status       TEXT NOT NULL DEFAULT 'active',
+    FOREIGN KEY (entity_id) REFERENCES entities(id),
+    FOREIGN KEY (project_id) REFERENCES entities(id),
+    FOREIGN KEY (repo_id) REFERENCES entities(id),
+    FOREIGN KEY (task_id) REFERENCES entities(id),
+    UNIQUE (repo_id, sha)
+);
+
+CREATE INDEX idx_p_commits_task ON p_commits(task_id);
+CREATE INDEX idx_p_commits_repo_sha ON p_commits(repo_id, sha);
+
 -- =============================================================
 -- Layer 3: Workspace (directory <-> project mapping)
 -- =============================================================
@@ -257,6 +290,7 @@ CREATE TABLE workspaces (
     path              TEXT NOT NULL UNIQUE,
     current_branch_id INTEGER NOT NULL,
     state_hash        TEXT,
+    repo_root         TEXT,
     FOREIGN KEY (project_id) REFERENCES entities(id),
     FOREIGN KEY (current_branch_id) REFERENCES entities(id)
 );

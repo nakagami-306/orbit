@@ -44,6 +44,10 @@ func (p *Projector) ApplyDatoms(sqlTx *sql.Tx, entityID int64, entityType eavt.E
 		return p.applyTopic(sqlTx, entityID, stableID, state)
 	case eavt.EntityTopicThread:
 		return p.applyTopicThread(sqlTx, entityID, state)
+	case eavt.EntityRepo:
+		return p.applyRepo(sqlTx, entityID, stableID, state)
+	case eavt.EntityCommit:
+		return p.applyCommit(sqlTx, entityID, stableID, state)
 	default:
 		return fmt.Errorf("unknown entity type: %s", entityType)
 	}
@@ -235,14 +239,53 @@ func (p *Projector) applyTask(sqlTx *sql.Tx, entityID int64, stableID string, st
 	projectID := valInt(state, eavt.AttrTaskProjectID)
 	sourceType := valStr(state, eavt.AttrTaskSourceType)
 	sourceID := valIntPtr(state, eavt.AttrTaskSourceID)
+	gitBranch := valStr(state, eavt.AttrTaskGitBranch)
 
 	_, err := sqlTx.Exec(`
-		INSERT INTO p_tasks (entity_id, stable_id, project_id, title, description, status, priority, assignee, source_type, source_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO p_tasks (entity_id, stable_id, project_id, title, description, status, priority, assignee, source_type, source_id, git_branch)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(entity_id) DO UPDATE SET
 			title=excluded.title, description=excluded.description, status=excluded.status,
-			priority=excluded.priority, assignee=excluded.assignee
-	`, entityID, stableID, projectID, title, desc, status, priority, assignee, sourceType, sourceID)
+			priority=excluded.priority, assignee=excluded.assignee, git_branch=excluded.git_branch
+	`, entityID, stableID, projectID, title, desc, status, priority, assignee, sourceType, sourceID, gitBranch)
+	return err
+}
+
+func (p *Projector) applyRepo(sqlTx *sql.Tx, entityID int64, stableID string, state map[string]eavt.Value) error {
+	uuid := valStr(state, eavt.AttrRepoUUID)
+	remoteURL := valStr(state, eavt.AttrRepoRemoteURL)
+	projectID := valInt(state, eavt.AttrRepoProjectID)
+
+	_, err := sqlTx.Exec(`
+		INSERT INTO p_repos (entity_id, stable_id, project_id, uuid, remote_url)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(entity_id) DO UPDATE SET
+			uuid=excluded.uuid, remote_url=excluded.remote_url
+	`, entityID, stableID, projectID, uuid, remoteURL)
+	return err
+}
+
+func (p *Projector) applyCommit(sqlTx *sql.Tx, entityID int64, stableID string, state map[string]eavt.Value) error {
+	sha := valStr(state, eavt.AttrCommitSha)
+	repoID := valInt(state, eavt.AttrCommitRepoID)
+	projectID := valInt(state, eavt.AttrCommitProjectID)
+	message := valStr(state, eavt.AttrCommitMessage)
+	author := valStr(state, eavt.AttrCommitAuthor)
+	authoredAt := valStr(state, eavt.AttrCommitAuthoredAt)
+	parents := valStr(state, eavt.AttrCommitParents)
+	taskID := valIntPtr(state, eavt.AttrCommitTaskID)
+	status := valStr(state, eavt.AttrCommitStatus)
+	if status == "" {
+		status = "active"
+	}
+
+	_, err := sqlTx.Exec(`
+		INSERT INTO p_commits (entity_id, stable_id, project_id, repo_id, sha, message, author, authored_at, parents, task_id, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(entity_id) DO UPDATE SET
+			message=excluded.message, author=excluded.author, authored_at=excluded.authored_at,
+			parents=excluded.parents, task_id=excluded.task_id, status=excluded.status
+	`, entityID, stableID, projectID, repoID, sha, message, author, authoredAt, parents, taskID, status)
 	return err
 }
 
