@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -53,13 +54,17 @@ func TestGenerateClaudeSettings_NewFile(t *testing.T) {
 		t.Error("SessionStart hook command is empty")
 	}
 
-	// Verify Stop has a prompt hook
+	// Verify Stop has a command hook referencing orbit-stop-nudge.py
 	stop := hooks["Stop"].([]any)
 	stopEntry := stop[0].(map[string]any)
 	stopHooks := stopEntry["hooks"].([]any)
 	stopHook := stopHooks[0].(map[string]any)
-	if _, ok := stopHook["prompt"].(string); !ok {
-		t.Error("Stop hook missing prompt")
+	stopCmd, ok := stopHook["command"].(string)
+	if !ok {
+		t.Error("Stop hook missing command")
+	}
+	if !strings.Contains(stopCmd, "orbit-stop-nudge.py") {
+		t.Errorf("Stop hook command does not reference orbit-stop-nudge.py: %s", stopCmd)
 	}
 }
 

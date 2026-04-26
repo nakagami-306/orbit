@@ -32,6 +32,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PYTHONIOENCODING=utf-8 python -c \"import json,os,sys;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins']['orbit@orbit'][0]['installPath'];exec(open(os.path.join(p,'hooks','orbit-stop-nudge.py'),encoding='utf-8').read())\""
+          }
+        ]
+      }
     ]
   }
 }

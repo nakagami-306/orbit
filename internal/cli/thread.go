@@ -168,7 +168,7 @@ func newThreadShowCmd(app *App) *cobra.Command {
 func newThreadAddCmd(app *App) *cobra.Command {
 	var entryType, content, stance string
 	var targetPrefix string
-	var useStdin bool
+	var useStdin, autoType bool
 
 	cmd := &cobra.Command{
 		Use:   "add <thread-id>",
@@ -188,11 +188,15 @@ func newThreadAddCmd(app *App) *cobra.Command {
 
 			threadPrefix := args[0]
 
-			if entryType == "" {
-				return fmt.Errorf("--type is required")
-			}
 			if content == "" {
 				return fmt.Errorf("--content is required")
+			}
+			if entryType == "" {
+				if !autoType {
+					return fmt.Errorf("--type is required (or pass --auto-type to infer from content)")
+				}
+				entryType = inferEntryType(content, targetPrefix != "")
+				fmt.Fprintf(os.Stderr, "[auto-type] inferred: %s\n", entryType)
 			}
 
 			info, err := app.resolveProject()
@@ -254,7 +258,33 @@ func newThreadAddCmd(app *App) *cobra.Command {
 	cmd.Flags().StringVar(&targetPrefix, "target", "", "Target entry ID (for argument)")
 	cmd.Flags().StringVar(&stance, "stance", "", "Stance: for/against/neutral (for argument)")
 	cmd.Flags().BoolVar(&useStdin, "stdin", false, "Read content from stdin")
+	cmd.Flags().BoolVar(&autoType, "auto-type", false, "Infer entry type from content (note/finding/option/conclusion/argument)")
 	return cmd
+}
+
+func inferEntryType(content string, hasTarget bool) string {
+	if strings.Contains(content, "結論として") || strings.Contains(content, "結論:") ||
+		strings.Contains(content, "結論は") || strings.Contains(content, "決定する") ||
+		strings.Contains(content, "採用する") || strings.Contains(content, "に決めた") {
+		return "conclusion"
+	}
+	if strings.Contains(content, "判明") || strings.Contains(content, "分かった") ||
+		strings.Contains(content, "確認した") || strings.Contains(content, "観察") ||
+		strings.Contains(content, "テスト結果") || strings.Contains(content, "検証結果") ||
+		strings.Contains(content, "事実") {
+		return "finding"
+	}
+	if strings.Contains(content, "案A") || strings.Contains(content, "案B") ||
+		strings.Contains(content, "選択肢") || strings.Contains(content, "オプション:") ||
+		strings.Contains(content, "option:") {
+		return "option"
+	}
+	if hasTarget && (strings.Contains(content, "賛成") || strings.Contains(content, "反対") ||
+		strings.Contains(content, "の方が") || strings.Contains(content, "すべき") ||
+		strings.Contains(content, "べきだ")) {
+		return "argument"
+	}
+	return "note"
 }
 
 func newThreadCloseCmd(app *App) *cobra.Command {
@@ -393,6 +423,9 @@ func newDecideCmd(app *App) *cobra.Command {
 				})
 			}
 			fmt.Printf("Thread decided — Decision %s\n", decSID)
+			fmt.Println()
+			fmt.Println("Next: このDecisionから派生する実装/作業Taskは？必要なら↓")
+			fmt.Printf("  orbit task create -t \"<title>\" --source-decision %s\n", decSID)
 			return nil
 		},
 	}

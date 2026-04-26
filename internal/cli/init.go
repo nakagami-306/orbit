@@ -140,26 +140,6 @@ func orbitHooks() map[string]any {
 				},
 			},
 		},
-		"Stop": []any{
-			map[string]any{
-				"matcher": "",
-				"hooks": []any{
-					map[string]any{
-						"type": "prompt",
-						"prompt": "あなたはOrbitプロジェクトの議論記録監視です。直前のアシスタント応答を確認し、以下を判定してください:\n\n" +
-							"1. チャット上で設計に関する議論（選択肢の提示、トレードオフの検討、問題の分析、方針の決定など）が行われたか？\n" +
-							"2. その議論内容は orbit thread add で記録済みか？（直前のレスポンス内に orbit thread add の呼び出しがあれば記録済み）\n" +
-							"3. open な thread が存在するか？（SessionStart で注入された状態を参照）\n\n" +
-							"判定ルール:\n" +
-							"- 設計議論があり、記録されていない場合 → {\"decision\": \"block\", \"reason\": \"設計に関する議論がありましたが、orbit thread add で記録されていません。finding/option/argument/conclusion のいずれかで記録してから続行してください。\"}\n" +
-							"- コード実装、ファイル操作、テスト実行など議論を伴わないターンだった場合 → {\"decision\": \"approve\"}\n" +
-							"- 議論はあったが既に orbit thread add で記録済みの場合 → {\"decision\": \"approve\"}\n" +
-							"- 軽微な質問応答や確認だけの場合 → {\"decision\": \"approve\"}\n\n" +
-							"重要: コード実装中やファイル操作中に毎回ブロックしないこと。ブロックするのは「設計上の議論が行われたのに記録されていない」場合のみ。",
-					},
-				},
-			},
-		},
 		"PreToolUse": []any{
 			map[string]any{
 				"matcher": "Bash",
@@ -178,6 +158,17 @@ func orbitHooks() map[string]any {
 					map[string]any{
 						"type":    "command",
 						"command": orbitHookCommand("orbit-pre-compact.py"),
+					},
+				},
+			},
+		},
+		"Stop": []any{
+			map[string]any{
+				"matcher": "",
+				"hooks": []any{
+					map[string]any{
+						"type":    "command",
+						"command": orbitHookCommand("orbit-stop-nudge.py"),
 					},
 				},
 			},
