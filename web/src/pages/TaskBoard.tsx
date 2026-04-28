@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchJSON, patchJSON, type Task } from '../api/client'
+import { fetchJSON, patchJSON, type Task, type Commit } from '../api/client'
 
 const columns = [
   { key: 'todo', label: 'Todo', color: '#888' },
@@ -20,6 +20,8 @@ export default function TaskBoard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [error, setError] = useState('')
   const [hideCancelled, setHideCancelled] = useState(true)
+  const [expandedTask, setExpandedTask] = useState<string | null>(null)
+  const [commits, setCommits] = useState<Record<string, Commit[]>>({})
 
   const loadTasks = () => {
     fetchJSON<Task[]>('/api/tasks')
@@ -37,6 +39,24 @@ export default function TaskBoard() {
     } catch (e: any) {
       setError(e.message)
       loadTasks() // revert on failure
+    }
+  }
+
+  const toggleCommits = async (task: Task) => {
+    if (expandedTask === task.id) {
+      setExpandedTask(null)
+      return
+    }
+    setExpandedTask(task.id)
+    if (!commits[task.id]) {
+      try {
+        const data = await fetchJSON<Commit[]>(
+          `/api/projects/${task.projectId}/commits?task=${task.id}`,
+        )
+        setCommits(prev => ({ ...prev, [task.id]: data }))
+      } catch (e: any) {
+        setError(e.message)
+      }
     }
   }
 
@@ -86,6 +106,8 @@ export default function TaskBoard() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {colTasks.map(task => {
                   const prio = priorityLabel[task.priority]
+                  const isExpanded = expandedTask === task.id
+                  const taskCommits = commits[task.id] ?? []
                   return (
                     <div key={task.id} style={{
                       background: '#2a2a2a',
@@ -96,7 +118,7 @@ export default function TaskBoard() {
                       <div style={{ fontSize: '0.85rem', fontWeight: 500, marginBottom: '6px', lineHeight: 1.3 }}>
                         {task.title}
                       </div>
-                      <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', gap: '0.5rem', marginBottom: '8px', flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', gap: '0.5rem', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                         {prio && (
                           <span style={{
                             color: prio.color,
@@ -111,7 +133,62 @@ export default function TaskBoard() {
                         )}
                         <span style={{ color: '#4a9eff' }}>{task.projectName}</span>
                         {task.assignee && <span>@{task.assignee}</span>}
+                        {task.gitBranch && (
+                          <span title={`branch: ${task.gitBranch}`} style={{
+                            color: '#aaa',
+                            background: '#1a1a1a',
+                            border: '1px solid #444',
+                            padding: '0 5px',
+                            borderRadius: '2px',
+                            fontFamily: 'monospace',
+                            fontSize: '0.65rem',
+                          }}>
+                            ⎇ {task.gitBranch}
+                          </span>
+                        )}
+                        {task.commitCount > 0 && (
+                          <button
+                            onClick={() => toggleCommits(task)}
+                            style={{
+                              color: '#4caf50',
+                              background: '#1a2a1a',
+                              border: '1px solid #2d4a2d',
+                              padding: '0 5px',
+                              borderRadius: '2px',
+                              fontFamily: 'monospace',
+                              fontSize: '0.65rem',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {isExpanded ? '▾' : '▸'} {task.commitCount} commit{task.commitCount === 1 ? '' : 's'}
+                          </button>
+                        )}
                       </div>
+                      {isExpanded && (
+                        <div style={{
+                          background: '#1a1a1a',
+                          border: '1px solid #333',
+                          borderRadius: '4px',
+                          padding: '0.5rem',
+                          marginBottom: '8px',
+                          fontSize: '0.7rem',
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                        }}>
+                          {taskCommits.length === 0 ? (
+                            <div style={{ color: '#666' }}>Loading…</div>
+                          ) : (
+                            taskCommits.map(c => (
+                              <div key={c.id} style={{ display: 'flex', gap: '0.5rem', padding: '2px 0', borderBottom: '1px solid #2a2a2a' }}>
+                                <span style={{ color: '#888', fontFamily: 'monospace' }}>{c.sha.slice(0, 7)}</span>
+                                <span style={{ color: '#ddd', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {c.message}
+                                </span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                       <div style={{ display: 'flex', gap: '4px' }}>
                         {columns.filter(c => c.key !== col.key).map(c => (
                           <button

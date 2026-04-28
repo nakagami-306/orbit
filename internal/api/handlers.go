@@ -1048,7 +1048,9 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	query := `
 		SELECT t.stable_id, t.title, COALESCE(t.description,''), t.status,
 		       COALESCE(t.priority,'medium'), COALESCE(t.assignee,''),
-		       t.project_id, p.name
+		       t.project_id, p.name,
+		       COALESCE(t.git_branch,''),
+		       (SELECT COUNT(*) FROM p_commits c WHERE c.task_id = t.entity_id AND c.status = 'active')
 		FROM p_tasks t
 		JOIN p_projects p ON t.project_id = p.entity_id
 		WHERE 1=1
@@ -1088,13 +1090,15 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		Assignee    string `json:"assignee"`
 		ProjectID   string `json:"projectId"`
 		ProjectName string `json:"projectName"`
+		GitBranch   string `json:"gitBranch"`
+		CommitCount int    `json:"commitCount"`
 	}
 	result := make([]taskResp, 0)
 	for rows.Next() {
 		var t taskResp
 		var projectEntityID int64
 		rows.Scan(&t.ID, &t.Title, &t.Description, &t.Status, &t.Priority, &t.Assignee,
-			&projectEntityID, &t.ProjectName)
+			&projectEntityID, &t.ProjectName, &t.GitBranch, &t.CommitCount)
 		var sid string
 		conn.QueryRow("SELECT stable_id FROM entities WHERE id = ?", projectEntityID).Scan(&sid)
 		t.ProjectID = sid

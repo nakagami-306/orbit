@@ -150,6 +150,20 @@ export interface Task {
   assignee: string
   projectId: string
   projectName: string
+  gitBranch: string
+  commitCount: number
+}
+
+export interface Commit {
+  id: string
+  sha: string
+  message: string
+  author: string
+  authored_at: string
+  parents: string[]
+  task_id?: string
+  repo_id: string
+  status: string
 }
 
 // --- Graph (all-branch topology) ---
