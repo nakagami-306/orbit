@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	orbitdb "github.com/nakagami-306/orbit/internal/db"
@@ -122,8 +123,14 @@ func newInitCmd(app *App) *cobra.Command {
 }
 
 // orbitHookCommand generates the Python one-liner command pattern used by Orbit hooks.
+// Picks `python` on Windows (where `python3` often resolves to a Microsoft Store stub
+// that fails with exit 49) and `python3` elsewhere (macOS / recent Ubuntu lack `python`).
 func orbitHookCommand(scriptName string) string {
-	return `PYTHONIOENCODING=utf-8 python -c "import json,os;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins']['orbit@orbit'][0]['installPath'];exec(open(os.path.join(p,'hooks','` + scriptName + `'),encoding='utf-8').read())"`
+	py := "python3"
+	if runtime.GOOS == "windows" {
+		py = "python"
+	}
+	return `PYTHONIOENCODING=utf-8 ` + py + ` -c "import json,os;p=json.load(open(os.path.expanduser('~/.claude/plugins/installed_plugins.json')))['plugins']['orbit@orbit'][0]['installPath'];exec(open(os.path.join(p,'hooks','` + scriptName + `'),encoding='utf-8').read())"`
 }
 
 // orbitHooks returns the full hooks configuration for Orbit.
