@@ -1,4 +1,4 @@
-<!-- orbit:generated | 2026-04-28T00:22:45Z | branch:main | head:019dd177-8af5-7db8-aa01-589da2aa74da -->
+<!-- orbit:generated | 2026-04-28T00:39:55Z | branch:main | head:019dd187-4088-7e51-97ef-e6b175595b48 -->
 # orbit
 
 > あらゆる種類のプロジェクトの設計状態・意思決定・進行をバージョン管理するCLIツール。人間とAIの両方が同じインターフェースで操作できる。
@@ -405,6 +405,8 @@ Claude Code #27398 によりplugin同梱のhooks.jsonは自動検出されない
 2026-04にグローバルCLAUDE.mdおよびsettings.jsonのrhizome系プロジェクト管理機能（devlog/backlog/Vault同期）を完全に置換。rhizomeはPKMとして継続使用（capture/search-kbスキルは保持）。
 
 Plugin v2 は2026-04にPhase 1（SessionStart刷新・DecideGuard強化・AI連携Section再構成）とPhase 2（Stop hook再導入・thread add type推論・decide/edit CLIでのTask提案）を完了。Plugin v0.4.2 で参考扱いだったhooks/hooks.jsonを削除し、orbit init による .claude/settings.json 生成時に runtime.GOOS で python/python3 を選択するクロスプラットフォーム対応を実装、現在 v0.4.2 として配信中。
+
+エンティティ意味論の伝達経路はSessionStart hookに一元化する方針を確定済み。Skill個別注入は発火タイミング依存でカバレッジに穴が空くため副次的位置に留め、SessionStartが全エンティティ意味論（Decision/Section/Thread/Entry/Topic/Task/Milestone/Commit/Repo）と行動振り分け・読者モデル・粒度ヒューリスティックの単一窓口を担う。git連携の意味論注入もこの方針に基づきPlugin v2 Phase 1で完了。Skill側へのgit連携ワークフロー追記とWeb UIでのcommit-task紐づけ可視化はPhase 2残課題として独立Task化済み（019dd184-c382, 019dd184-c68e）。
 
 ## Git連携
 
