@@ -82,6 +82,7 @@ def main():
     ctx.append("Commit: gitのcommitをOrbit内の第一級エンティティとして取り込む。Taskに紐づけてDecision DAGに間接接続する。")
     ctx.append("Repo: gitリポジトリの追跡。1プロジェクト:1repoが現状の制約。")
     ctx.append("Orbitはgit hookを使わず、コマンド実行時のpull型scanでcommitを取り込む（hook競合回避）。")
+    ctx.append("**task紐づけのないcommitはOrbit管轄外**: scan時にtask.git_branch一致のactive task（in-progress/todo）が無いcommitは p_commits に登録しない（gitに残るだけ）。Orbitはcommit storage層ではなく設計判断とgit実装の橋渡し層という責務分担。後から重要と判明したcommitは `orbit commit bind <sha> <task-id>` で能動的に取り込む（未登録shaも受け付け、git経由でinfo取得して新規登録＋bind）。")
     ctx.append("")
 
     # --- 行動振り分け ---
@@ -89,14 +90,14 @@ def main():
     ctx.append("")
     ctx.append("問い・不確実性 → orbit thread create → 議論中はorbit thread addでその都度記録")
     ctx.append("方針決定 → orbit decide（Decision + Section更新を同時に完結）")
-    ctx.append("**Decide直後 → 派生Taskの要否を判断**。実装/作業が必要なら orbit task create --source-decision <id>")
+    ctx.append("**Decide直後 → 派生Taskの要否を判断**。実装/作業が必要なら orbit task create \"<title>\" --source <decision-id>")
     ctx.append("明確な設計変更（議論不要） → orbit edit")
     ctx.append("作業が必要 → orbit task create")
     ctx.append("実装着手 → orbit task start <id>（現在のgit branchが自動記録される）")
     ctx.append("実装完了 → orbit task update --status done（Decisionではない。doneでcommit回収scanが走る）")
     ctx.append("テスト結果・調査結果 → orbit thread add --type finding（Decisionではない）")
     ctx.append("複数Threadが同一テーマ → orbit topic create + add-thread")
-    ctx.append("git連携トラブル: commit未紐づけは orbit commit bind <sha> <task-id> で救済")
+    ctx.append("git連携: task紐づけのないcommitはOrbit非登録。Orbit管轄外commit（main直push・hotfix・軽微修正）を後から取り込みたければ orbit commit bind <sha> <task-id>（未登録shaもOK）")
     ctx.append("")
 
     # --- Decisionガードレール ---
