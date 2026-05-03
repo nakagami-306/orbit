@@ -9,12 +9,13 @@ export type PanelTarget =
 
 interface Props {
   projectId: string
+  branch?: string
   target: PanelTarget
   onClose: () => void
   onOpenThread?: (threadId: string) => void
 }
 
-export default function DetailPanel({ projectId, target, onClose, onOpenThread }: Props) {
+export default function DetailPanel({ projectId, branch, target, onClose, onOpenThread }: Props) {
   return (
     <div style={{
       width: '420px',
@@ -44,7 +45,7 @@ export default function DetailPanel({ projectId, target, onClose, onOpenThread }
         </button>
       </div>
 
-      {target.kind === 'decision' && <DecisionContent projectId={projectId} decisionId={target.id} onOpenThread={onOpenThread} />}
+      {target.kind === 'decision' && <DecisionContent projectId={projectId} branch={branch} decisionId={target.id} onOpenThread={onOpenThread} />}
       {target.kind === 'thread' && <ThreadContent projectId={projectId} threadId={target.id} />}
       {target.kind === 'topic' && <TopicContent projectId={projectId} topicId={target.id} onOpenThread={onOpenThread} />}
     </div>
@@ -53,8 +54,8 @@ export default function DetailPanel({ projectId, target, onClose, onOpenThread }
 
 // --- Decision Content ---
 
-function DecisionContent({ projectId, decisionId, onOpenThread }: {
-  projectId: string; decisionId: string; onOpenThread?: (id: string) => void
+function DecisionContent({ projectId, branch, decisionId, onOpenThread }: {
+  projectId: string; branch?: string; decisionId: string; onOpenThread?: (id: string) => void
 }) {
   const [detail, setDetail] = useState<DecisionDetail | null>(null)
   const [loading, setLoading] = useState(false)
@@ -65,11 +66,12 @@ function DecisionContent({ projectId, decisionId, onOpenThread }: {
     setError('')
     setLoading(true)
     setExpandedChange(null)
-    fetchJSON<DecisionDetail>(`/api/projects/${projectId}/decisions/${decisionId}`)
+    const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : ''
+    fetchJSON<DecisionDetail>(`/api/projects/${projectId}/decisions/${decisionId}${branchParam}`)
       .then(setDetail)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
-  }, [projectId, decisionId])
+  }, [projectId, branch, decisionId])
 
   if (loading) return <div style={{ color: '#888', fontSize: '0.85rem' }}>Loading...</div>
   if (error) return <div style={{ color: '#f66', fontSize: '0.85rem' }}>Error: {error}</div>

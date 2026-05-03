@@ -254,7 +254,9 @@ export default function ProjectView() {
               currentBranch={selectedBranch}
             />
           )}
-          {activeTab === 'state' && dag && <StateView sections={dag.sections || []} />}
+          {activeTab === 'state' && dag && id && (
+            <StateView projectId={id} branch={selectedBranch} sections={dag.sections || []} />
+          )}
           {activeTab === 'threads' && dag && (
             <ThreadList
               threads={dag.threads || []}
@@ -271,6 +273,7 @@ export default function ProjectView() {
         {panelTarget && id && (
           <DetailPanel
             projectId={id}
+            branch={selectedBranch}
             target={panelTarget}
             onClose={() => setPanelTarget(null)}
             onOpenThread={selectThread}

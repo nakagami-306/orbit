@@ -77,6 +77,15 @@ export interface EntityNode {
   instant: string
 }
 
+export interface SectionSummary {
+  id: string
+  title: string
+  content: string
+  position: number
+  isStale: boolean
+  staleReason?: string
+}
+
 export interface DAGResponse {
   nodes: DAGNode[]
   edges: DAGEdge[]
