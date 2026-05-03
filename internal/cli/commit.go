@@ -91,6 +91,7 @@ func newCommitBindCmd(app *App) *cobra.Command {
 		Short: "Manually bind a commit to a task",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
 			info, err := app.resolveProject()
 			if err != nil {
 				return err
@@ -98,23 +99,52 @@ func newCommitBindCmd(app *App) *cobra.Command {
 			cs := commitService(app)
 			ts := taskService(app)
 
-			c, err := cs.FindCommitBySHAPrefix(cmd.Context(), info.ProjectEntityID, args[0])
+			cwd, err := os.Getwd()
 			if err != nil {
 				return err
 			}
-			t, err := ts.FindTask(cmd.Context(), info.ProjectEntityID, args[1])
+			if !git.IsRepo(cwd) {
+				return fmt.Errorf("not inside a git repository: %s", cwd)
+			}
+			repoRoot, err := git.ToplevelDir(cwd)
 			if err != nil {
 				return err
 			}
-			if err := cs.BindCommit(cmd.Context(), info.ProjectEntityID, c.SHA, t.EntityID); err != nil {
+			rs := repoService(app)
+			remoteURL, _ := git.RemoteURL(repoRoot, "origin")
+			repo, err := rs.EnsureRepo(ctx, info.ProjectEntityID, remoteURL)
+			if err != nil {
+				return fmt.Errorf("ensure repo: %w", err)
+			}
+
+			// Resolve full SHA: prefer DB (already-tracked commit), fall back to git
+			// for commits Orbit hasn't seen yet (the common case under Option F,
+			// where unbound commits are intentionally not registered).
+			var fullSHA string
+			if c, ferr := cs.FindCommitBySHAPrefix(ctx, info.ProjectEntityID, args[0]); ferr == nil {
+				fullSHA = c.SHA
+			} else {
+				gitInfo, gerr := git.CommitInfoFor(repoRoot, args[0])
+				if gerr != nil {
+					return fmt.Errorf("commit %s not found (in Orbit or git): %w", args[0], gerr)
+				}
+				fullSHA = gitInfo.SHA
+			}
+
+			t, err := ts.FindTask(ctx, info.ProjectEntityID, args[1])
+			if err != nil {
+				return err
+			}
+
+			if err := cs.BindCommit(ctx, info.ProjectEntityID, repo.EntityID, repoRoot, fullSHA, t.EntityID); err != nil {
 				return err
 			}
 			if app.Format == "json" {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{
-					"action": "bound", "sha": c.SHA, "task_id": t.StableID,
+					"action": "bound", "sha": fullSHA, "task_id": t.StableID,
 				})
 			}
-			fmt.Printf("Bound %s → task %q\n", c.SHA[:12], t.Title)
+			fmt.Printf("Bound %s → task %q\n", fullSHA[:12], t.Title)
 			return nil
 		},
 	}

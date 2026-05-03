@@ -103,25 +103,39 @@ func (e *commitTestEnv) makeTask(t *testing.T, title string) *Task {
 	return task
 }
 
+// makeStartedTask creates an in-progress task bound to the given git branch.
+// Use this in scan tests so the commit-task resolver actually finds a target.
+func (e *commitTestEnv) makeStartedTask(t *testing.T, title, branch string) *Task {
+	t.Helper()
+	task := e.makeTask(t, title)
+	if err := e.tasks.StartTask(e.ctx, task.EntityID, branch); err != nil {
+		t.Fatalf("StartTask %q: %v", title, err)
+	}
+	return task
+}
+
 // ----- ScanRepo -----
 
-func TestScanInitialCommitRegistered(t *testing.T) {
+// Under Option F, scan only registers commits that resolve to an active task.
+// Without a started task, an initial commit must NOT be registered.
+func TestScanSkipsUnboundCommits(t *testing.T) {
 	env := setupCommitEnv(t)
 
 	res, err := env.commits.ScanRepo(env.ctx, env.projectID, env.repoEID, env.repoRoot)
 	if err != nil {
 		t.Fatalf("ScanRepo: %v", err)
 	}
-	if res.Added != 1 {
-		t.Errorf("Added = %d, want 1 (initial commit)", res.Added)
+	if res.Added != 0 {
+		t.Errorf("Added = %d, want 0 (no active task → unbound commit must not be registered)", res.Added)
 	}
 	if res.Bound != 0 {
-		t.Errorf("Bound = %d, want 0 (no active task)", res.Bound)
+		t.Errorf("Bound = %d, want 0", res.Bound)
 	}
 }
 
 func TestScanIdempotent(t *testing.T) {
 	env := setupCommitEnv(t)
+	env.makeStartedTask(t, "ongoing", "main")
 	_, _ = env.commits.ScanRepo(env.ctx, env.projectID, env.repoEID, env.repoRoot)
 
 	res, err := env.commits.ScanRepo(env.ctx, env.projectID, env.repoEID, env.repoRoot)
@@ -135,6 +149,7 @@ func TestScanIdempotent(t *testing.T) {
 
 func TestScanNewCommitAdded(t *testing.T) {
 	env := setupCommitEnv(t)
+	env.makeStartedTask(t, "ongoing", "main")
 	_, _ = env.commits.ScanRepo(env.ctx, env.projectID, env.repoEID, env.repoRoot)
 
 	gitMust(t, env.repoRoot, "commit", "--allow-empty", "-m", "second")
@@ -210,7 +225,10 @@ func TestScanInProgressPreferredOverTodo(t *testing.T) {
 
 func TestScanOrphansUnreachableCommits(t *testing.T) {
 	env := setupCommitEnv(t)
+	// Need an active task on feat/temp so the temp commit gets registered;
+	// only registered commits can later be re-marked as orphaned.
 	gitMust(t, env.repoRoot, "checkout", "-b", "feat/temp")
+	env.makeStartedTask(t, "temp work task", "feat/temp")
 	tempSHA := gitMust(t, env.repoRoot, "commit", "--allow-empty", "-m", "temp work")
 	tempSHA = strings.TrimSpace(gitMust(t, env.repoRoot, "rev-parse", "HEAD"))
 	_ = tempSHA
@@ -231,30 +249,32 @@ func TestScanOrphansUnreachableCommits(t *testing.T) {
 
 // ----- BindCommit / UnbindCommit -----
 
-func TestBindAndUnbind(t *testing.T) {
+// Under Option F, the initial commit isn't registered (no active task), so bind
+// must fetch the commit info from git and create the entity in the same op.
+// This is the canonical "untracked sha → bound" recovery flow.
+func TestBindRegistersUnseenCommit(t *testing.T) {
 	env := setupCommitEnv(t)
 	_, _ = env.commits.ScanRepo(env.ctx, env.projectID, env.repoEID, env.repoRoot)
 
-	commits, _ := env.commits.ListCommits(env.ctx, env.projectID, nil)
-	if len(commits) == 0 {
-		t.Fatal("no commits to bind")
-	}
-	c := commits[0]
-	if c.TaskID != nil {
-		t.Fatalf("expected unbound, got task=%d", *c.TaskID)
+	// Sanity: nothing is registered yet because no started task.
+	all, _ := env.commits.ListCommits(env.ctx, env.projectID, nil)
+	if len(all) != 0 {
+		t.Fatalf("expected 0 registered commits, got %d", len(all))
 	}
 
+	headSHA := strings.TrimSpace(gitMust(t, env.repoRoot, "rev-parse", "HEAD"))
 	task := env.makeTask(t, "manual bind target")
-	if err := env.commits.BindCommit(env.ctx, env.projectID, c.SHA, task.EntityID); err != nil {
-		t.Fatalf("BindCommit: %v", err)
+
+	if err := env.commits.BindCommit(env.ctx, env.projectID, env.repoEID, env.repoRoot, headSHA, task.EntityID); err != nil {
+		t.Fatalf("BindCommit (unseen sha): %v", err)
 	}
 
 	bound, _ := env.commits.ListCommits(env.ctx, env.projectID, &task.EntityID)
-	if len(bound) != 1 || bound[0].SHA != c.SHA {
+	if len(bound) != 1 || bound[0].SHA != headSHA {
 		t.Errorf("bind didn't take effect: bound=%v", bound)
 	}
 
-	if err := env.commits.UnbindCommit(env.ctx, env.projectID, c.SHA); err != nil {
+	if err := env.commits.UnbindCommit(env.ctx, env.projectID, headSHA); err != nil {
 		t.Fatalf("UnbindCommit: %v", err)
 	}
 	after, _ := env.commits.ListCommits(env.ctx, env.projectID, &task.EntityID)
@@ -263,10 +283,37 @@ func TestBindAndUnbind(t *testing.T) {
 	}
 }
 
+// Re-binding an already-registered commit takes the in-DB path.
+func TestBindReassignsExistingCommit(t *testing.T) {
+	env := setupCommitEnv(t)
+	taskA := env.makeStartedTask(t, "task A", "main")
+	_, _ = env.commits.ScanRepo(env.ctx, env.projectID, env.repoEID, env.repoRoot)
+
+	commits, _ := env.commits.ListCommits(env.ctx, env.projectID, &taskA.EntityID)
+	if len(commits) == 0 {
+		t.Fatal("expected initial commit bound to taskA via scan")
+	}
+	c := commits[0]
+
+	taskB := env.makeTask(t, "task B")
+	if err := env.commits.BindCommit(env.ctx, env.projectID, env.repoEID, env.repoRoot, c.SHA, taskB.EntityID); err != nil {
+		t.Fatalf("BindCommit (reassign): %v", err)
+	}
+	boundB, _ := env.commits.ListCommits(env.ctx, env.projectID, &taskB.EntityID)
+	if len(boundB) != 1 {
+		t.Errorf("re-bind to taskB failed: %v", boundB)
+	}
+	boundA, _ := env.commits.ListCommits(env.ctx, env.projectID, &taskA.EntityID)
+	if len(boundA) != 0 {
+		t.Errorf("taskA should no longer hold the commit, got %v", boundA)
+	}
+}
+
 // ----- FindCommitBySHAPrefix -----
 
 func TestFindCommitBySHAPrefix(t *testing.T) {
 	env := setupCommitEnv(t)
+	env.makeStartedTask(t, "ongoing", "main")
 	_, _ = env.commits.ScanRepo(env.ctx, env.projectID, env.repoEID, env.repoRoot)
 
 	commits, _ := env.commits.ListCommits(env.ctx, env.projectID, nil)

@@ -1,4 +1,4 @@
-<!-- orbit:generated | 2026-04-28T00:39:55Z | branch:main | head:019dd187-4088-7e51-97ef-e6b175595b48 -->
+<!-- orbit:generated | 2026-05-02T21:54:58Z | branch:main | head:019deab0-0a75-7da5-b717-0f5b38aa9366 -->
 # orbit
 
 > あらゆる種類のプロジェクトの設計状態・意思決定・進行をバージョン管理するCLIツール。人間とAIの両方が同じインターフェースで操作できる。
@@ -462,7 +462,9 @@ scan時のtask検索条件:
 - `status='in-progress' AND git_branch=X` を最優先
 - 次点で `status='todo' AND git_branch=X`
 - done/cancelled は除外（古いcommitの誤再bind防止）
-- 該当taskなしなら `commit.task=null` で登録、後から `orbit commit bind <sha> <task-id>` で救済
+- 該当taskなしなら **p_commits に登録しない**（Orbit管轄外。gitに残るだけ）。後から重要と判明したcommitは `orbit commit bind <sha> <task-id>` で能動的に取り込む（bind時にgitから情報を引いてp_commits新規登録）
+
+この方針はOrbitが『設計判断とgit実装の橋渡し層』であってcommit storage層ではないという責務分担に基づく。gitが第一級storageとして全commitを永続化しているため、橋渡し相手（task）のないcommitを冗長にOrbitへ登録するのはノイズにしかならない。
 
 ### 紐づけのフォールバック3層
 

@@ -83,7 +83,7 @@ func newEditCmd(app *App) *cobra.Command {
 				fmt.Printf("Created section \"State\" with Decision %s\n", decSID)
 				fmt.Println()
 				fmt.Println("Next: このDecisionから派生する実装/作業Taskは？必要なら↓")
-				fmt.Printf("  orbit task create -t \"<title>\" --source-decision %s\n", decSID)
+				fmt.Printf("  orbit task create \"<title>\" --source %s\n", decSID)
 				return nil
 			}
 
@@ -152,7 +152,7 @@ func newEditCmd(app *App) *cobra.Command {
 			fmt.Printf("Edited section %q — Decision %s\n", targetSection.Title, decSID)
 			fmt.Println()
 			fmt.Println("Next: このDecisionから派生する実装/作業Taskは？必要なら↓")
-			fmt.Printf("  orbit task create -t \"<title>\" --source-decision %s\n", decSID)
+			fmt.Printf("  orbit task create \"<title>\" --source %s\n", decSID)
 			return nil
 		},
 	}

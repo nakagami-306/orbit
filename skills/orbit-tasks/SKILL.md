@@ -64,19 +64,23 @@ orbit task done  <task-id>   # task.git_branch上のcommit群をscanしてCommit
 - `orbit task done` は `orbit task update --status done` のエイリアスかつcommit回収scanを走らせる。doneにはこちらを使う
 - 1 commit : 1 taskが原則。同一branchを複数Taskで使い回すと紐づけが曖昧になるため避ける
 
-### Commit-Task紐づけの救済
+### Commit-Task紐づけと管轄外commit
 
-scanで取り逃した／別branchで作業した／cherry-pickした等で紐づけ漏れが起きた場合は手動で繋ぐ:
+Orbitは **task紐づけ先のあるcommitだけ** を取り込む。task.git_branch一致のactive task（in-progress/todo）が解決できないcommitはOrbit管轄外でgitに残るだけ。これにより設計判断と無関係な軽微修正・main直push・hotfix等が p_commits に蓄積するノイズを防いでいる。
+
+後から「このcommitは特定taskと紐づけて記録したい」と判明した場合は、shaを指定して bind する:
 
 ```bash
 orbit commit list --task <task-id>     # taskに紐づくcommit一覧
 orbit commit list                       # プロジェクト全commit一覧
-orbit commit bind <sha> <task-id>       # 手動紐づけ
+orbit commit bind <sha> <task-id>       # 手動紐づけ（未登録shaならgit経由で取り込み＋bind）
 orbit commit unbind <sha>               # 紐づけ解除
-orbit sync                              # gitリポジトリをscanしてcommitをtaskに紐づける（取りこぼし救済）
+orbit sync                              # gitリポジトリをscanしてactive taskに紐づくcommitを取り込み
 ```
 
-Orbitはgit hookを使わずpull型scanでcommitを取り込む設計。startで宣言→doneでscan、漏れたら bind で救済、というフローが基本。
+`orbit commit bind` はOrbit未登録のshaも受け付ける。git経由でcommit情報を引いて新規登録すると同時にtaskへbindする。
+
+Orbitはgit hookを使わずpull型scanでcommitを取り込む設計。startで宣言→doneでscan、Orbit管轄外のcommitを後から取り込みたければ bind、というフローが基本。
 
 ### 注意
 

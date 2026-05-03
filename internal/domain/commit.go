@@ -100,19 +100,23 @@ func (s *CommitService) ScanRepo(ctx context.Context, projectEntityID, repoEntit
 	}
 
 	for _, sha := range newSHAs {
+		taskID, _ := s.resolveTaskForCommit(ctx, projectEntityID, repoRoot, sha)
+		if taskID == nil {
+			// Orbit only tracks commits that bind to an active task. Unbound
+			// commits stay in git; users can pull them in later via
+			// `orbit commit bind <sha> <task-id>` when they become relevant.
+			continue
+		}
 		info, err := git.CommitInfoFor(repoRoot, sha)
 		if err != nil {
 			// Skip unreadable commits but continue
 			continue
 		}
-		taskID, _ := s.resolveTaskForCommit(ctx, projectEntityID, repoRoot, sha)
 		if err := s.createCommitEntity(ctx, projectEntityID, repoEntityID, info, taskID); err != nil {
 			return res, err
 		}
 		res.Added++
-		if taskID != nil {
-			res.Bound++
-		}
+		res.Bound++
 	}
 
 	// Re-mark orphaned/active based on reachability
@@ -212,16 +216,25 @@ func (s *CommitService) markStatus(ctx context.Context, commitEntityID, projectE
 	})
 }
 
-// BindCommit attaches a previously-unbound commit to a task.
-// Used as the manual fallback when scan couldn't resolve.
-func (s *CommitService) BindCommit(ctx context.Context, projectEntityID int64, sha string, taskEntityID int64) error {
+// BindCommit attaches a commit to a task. If the commit isn't yet registered
+// in p_commits (Orbit tracks only task-bound commits by default), it fetches
+// the commit info from git via repoRoot and creates the entity in the same
+// transaction with the task already attached.
+func (s *CommitService) BindCommit(ctx context.Context, projectEntityID, repoEntityID int64, repoRoot, sha string, taskEntityID int64) error {
 	var commitEntityID int64
 	err := s.DB.Conn().QueryRowContext(ctx,
 		"SELECT entity_id FROM p_commits WHERE project_id = ? AND sha = ?",
 		projectEntityID, sha,
 	).Scan(&commitEntityID)
+	if err == sql.ErrNoRows {
+		info, gerr := git.CommitInfoFor(repoRoot, sha)
+		if gerr != nil {
+			return fmt.Errorf("commit %s not found in git: %w", sha, gerr)
+		}
+		return s.createCommitEntity(ctx, projectEntityID, repoEntityID, info, &taskEntityID)
+	}
 	if err != nil {
-		return fmt.Errorf("commit %s not found in project: %w", sha, err)
+		return fmt.Errorf("commit %s lookup: %w", sha, err)
 	}
 
 	return s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
