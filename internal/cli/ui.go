@@ -60,7 +60,7 @@ func newUICmd(app *App) *cobra.Command {
 // runDaemon starts the server in the current process and blocks.
 // Called when --daemon flag is set (by the spawned child process).
 func runDaemon(port int) error {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	srv, err := api.NewServer(addr)
 	if err != nil {
 		return fmt.Errorf("create server: %w", err)
