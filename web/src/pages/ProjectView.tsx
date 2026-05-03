@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { fetchJSON, type DAGResponse, type ProjectDetail, type EntityNode, type BranchInfo, type TopicSummary, type GraphResponse } from '../api/client'
+import { fetchJSON, type DAGResponse, type ProjectDetail, type EntityNode, type TopicSummary, type GraphResponse } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
 import Timeline from '../components/Timeline'
 import BranchGraph from '../components/BranchGraph'
@@ -99,8 +99,8 @@ export default function ProjectView() {
     updateURL(tab, selectedBranch)
   }, [updateURL, selectedBranch])
 
-  const selectDecision = useCallback((decisionId: string | null) => {
-    setPanelTarget(decisionId ? { kind: 'decision', id: decisionId } : null)
+  const selectDecision = useCallback((decisionId: string | null, branch?: string) => {
+    setPanelTarget(decisionId ? { kind: 'decision', id: decisionId, branch } : null)
   }, [])
 
   const selectThread = useCallback((threadId: string) => {
@@ -149,48 +149,6 @@ export default function ProjectView() {
           <Link to="/" style={{ color: '#888', textDecoration: 'none', fontSize: '0.8rem' }}>Projects</Link>
           <span style={{ color: '#555' }}>/</span>
           <h2 style={{ margin: 0, fontSize: '1.1rem', color: '#e0e0e0' }}>{project?.name || '...'}</h2>
-
-          {/* Branch selector — always visible */}
-          <div style={{ marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-              <path d="M5 3v6.5a2.5 2.5 0 005 0V8h1a2 2 0 002-2V3M5 3H3M5 3h2M13 3h-2M13 3h2" stroke="#888" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="5" cy="13" r="1.5" stroke="#888" strokeWidth="1.5"/>
-            </svg>
-            <select
-              value={selectedBranch}
-              onChange={e => handleBranchChange(e.target.value)}
-              style={{
-                background: '#2a2a2a',
-                border: '1px solid #444',
-                color: '#ccc',
-                fontSize: '0.75rem',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              {branches.length === 0 && (
-                <option value="">main</option>
-              )}
-              {branches.map((b: BranchInfo) => (
-                <option key={b.id} value={b.isMain ? '' : b.name}>
-                  {b.name || 'main'}{b.isMain ? ' (main)' : ''}
-                  {b.status === 'merged' ? ' [merged]' : b.status === 'abandoned' ? ' [abandoned]' : ''}
-                </option>
-              ))}
-            </select>
-            {currentBranchInfo && !currentBranchInfo.isMain && (
-              <span style={{
-                fontSize: '0.65rem',
-                padding: '1px 6px',
-                borderRadius: '3px',
-                background: currentBranchInfo.status === 'active' ? '#1a2a3a' : currentBranchInfo.status === 'merged' ? '#1a2a1a' : '#2a2020',
-                color: currentBranchInfo.status === 'active' ? '#4a9eff' : currentBranchInfo.status === 'merged' ? '#4c4' : '#f66',
-              }}>
-                {currentBranchInfo.status}
-              </span>
-            )}
-          </div>
         </div>
 
         {project && (
@@ -239,7 +197,7 @@ export default function ProjectView() {
           {activeTab === 'graph' && graphData && (
             <BranchGraph
               graph={graphData}
-              onSelectDecision={id => selectDecision(id)}
+              onSelectDecision={(id, branchName) => selectDecision(id, branchName)}
               selectedDecisionId={selectedDecisionId}
             />
           )}
@@ -255,7 +213,13 @@ export default function ProjectView() {
             />
           )}
           {activeTab === 'state' && dag && id && (
-            <StateView projectId={id} branch={selectedBranch} sections={dag.sections || []} />
+            <StateView
+              projectId={id}
+              branch={selectedBranch}
+              sections={dag.sections || []}
+              branches={branches}
+              onSwitchBranch={handleBranchChange}
+            />
           )}
           {activeTab === 'threads' && dag && (
             <ThreadList

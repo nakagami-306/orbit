@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { fetchJSON, type EntityNode, type SectionSummary } from '../api/client'
+import { fetchJSON, type EntityNode, type SectionSummary, type BranchInfo } from '../api/client'
 
 interface Props {
   projectId: string
   branch: string
   sections: EntityNode[]
+  branches?: BranchInfo[]
+  onSwitchBranch?: (branchValue: string) => void
 }
 
-export default function StateView({ projectId, branch, sections }: Props) {
+export default function StateView({ projectId, branch, sections, branches = [], onSwitchBranch }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [details, setDetails] = useState<Record<string, SectionSummary>>({})
   const [loadError, setLoadError] = useState('')
@@ -43,12 +45,38 @@ export default function StateView({ projectId, branch, sections }: Props) {
         padding: '0 0 0.75rem',
         borderBottom: '1px solid #2a2a2a',
       }}>
-        <div style={{ fontSize: '0.8rem', color: '#888' }}>
-          {sorted.length} section{sorted.length !== 1 ? 's' : ''}
-          {sorted.filter(s => s.status === 'stale').length > 0 && (
-            <span style={{ marginLeft: '12px', color: '#eab308' }}>
-              {sorted.filter(s => s.status === 'stale').length} stale
-            </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ fontSize: '0.8rem', color: '#888' }}>
+            {sorted.length} section{sorted.length !== 1 ? 's' : ''}
+            {sorted.filter(s => s.status === 'stale').length > 0 && (
+              <span style={{ marginLeft: '12px', color: '#eab308' }}>
+                {sorted.filter(s => s.status === 'stale').length} stale
+              </span>
+            )}
+          </div>
+          {branches.length > 1 && (
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {branches.map(b => {
+                const name = b.name || 'main'
+                const branchValue = b.isMain ? '' : b.name
+                const isActive = b.isMain ? !branch : branch === b.name
+                return (
+                  <span
+                    key={b.id}
+                    onClick={() => onSwitchBranch?.(branchValue)}
+                    style={{
+                      fontSize: '0.65rem', padding: '1px 6px', borderRadius: '3px',
+                      background: isActive ? '#1a2a3a' : '#2a2a2a',
+                      color: isActive ? '#4a9eff' : '#888',
+                      border: isActive ? '1px solid #2a3a4a' : '1px solid #333',
+                      cursor: onSwitchBranch ? 'pointer' : 'default',
+                    }}
+                  >
+                    {name}
+                  </span>
+                )
+              })}
+            </div>
           )}
         </div>
         {loadError && (

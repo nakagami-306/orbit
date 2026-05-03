@@ -3,7 +3,7 @@ import { fetchJSON, type DecisionDetail, type ThreadDetail, type TopicDetail } f
 import { formatTimeFull } from '../utils/time'
 
 export type PanelTarget =
-  | { kind: 'decision'; id: string }
+  | { kind: 'decision'; id: string; branch?: string }
   | { kind: 'thread'; id: string }
   | { kind: 'topic'; id: string }
 
@@ -45,7 +45,7 @@ export default function DetailPanel({ projectId, branch, target, onClose, onOpen
         </button>
       </div>
 
-      {target.kind === 'decision' && <DecisionContent projectId={projectId} branch={branch} decisionId={target.id} onOpenThread={onOpenThread} />}
+      {target.kind === 'decision' && <DecisionContent projectId={projectId} branch={target.branch ?? branch} decisionId={target.id} onOpenThread={onOpenThread} />}
       {target.kind === 'thread' && <ThreadContent projectId={projectId} threadId={target.id} />}
       {target.kind === 'topic' && <TopicContent projectId={projectId} topicId={target.id} onOpenThread={onOpenThread} />}
     </div>

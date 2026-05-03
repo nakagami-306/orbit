@@ -4,7 +4,7 @@ import { formatTimeShort } from '../utils/time'
 
 interface Props {
   graph: GraphResponse
-  onSelectDecision?: (id: string) => void
+  onSelectDecision?: (id: string, branchName: string) => void
   selectedDecisionId?: string | null
 }
 
@@ -239,7 +239,7 @@ export default function BranchGraph({ graph, onSelectDecision, selectedDecisionI
                   stroke={isSelected ? '#fff' : 'none'}
                   strokeWidth={isSelected ? 2 : 0}
                   style={{ cursor: 'pointer' }}
-                  onClick={() => onSelectDecision?.(row.decision.id)}
+                  onClick={() => onSelectDecision?.(row.decision.id, row.decision.branchName)}
                 />
                 {isHead && (
                   <text x={x} y={row.y - r - 4} textAnchor="middle" fontSize="8" fill={color} fontWeight="bold">
@@ -259,7 +259,7 @@ export default function BranchGraph({ graph, onSelectDecision, selectedDecisionI
             return (
               <div
                 key={row.decision.id}
-                onClick={() => onSelectDecision?.(row.decision.id)}
+                onClick={() => onSelectDecision?.(row.decision.id, row.decision.branchName)}
                 style={{
                   height: ROW_H,
                   display: 'flex',
