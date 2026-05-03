@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nakagami-306/orbit/internal/git"
 	"github.com/nakagami-306/orbit/internal/projection"
 )
 
@@ -306,6 +307,71 @@ func TestBindReassignsExistingCommit(t *testing.T) {
 	boundA, _ := env.commits.ListCommits(env.ctx, env.projectID, &taskA.EntityID)
 	if len(boundA) != 0 {
 		t.Errorf("taskA should no longer hold the commit, got %v", boundA)
+	}
+}
+
+// ----- PruneUnboundCommits (one-shot migration) -----
+
+// Simulate the pre-Option-F state by directly creating an unbound commit entity
+// via the same internal path scan used to take, then verify Prune removes it.
+func TestPruneUnboundCommits(t *testing.T) {
+	env := setupCommitEnv(t)
+
+	// Bind one commit via a started task; it should survive prune.
+	bound := env.makeStartedTask(t, "kept", "main")
+	gitMust(t, env.repoRoot, "commit", "--allow-empty", "-m", "bound work")
+	_, _ = env.commits.ScanRepo(env.ctx, env.projectID, env.repoEID, env.repoRoot)
+
+	boundCommits, _ := env.commits.ListCommits(env.ctx, env.projectID, &bound.EntityID)
+	if len(boundCommits) == 0 {
+		t.Fatal("expected at least one bound commit")
+	}
+
+	// Inject an unbound commit by calling createCommitEntity directly with taskID=nil.
+	// This mirrors data left over from the pre-Option-F scan policy. We make a
+	// fresh empty commit and skip ScanRepo so resolveTaskForCommit doesn't bind it.
+	gitMust(t, env.repoRoot, "commit", "--allow-empty", "-m", "stale unbound")
+	staleSHA := strings.TrimSpace(gitMust(t, env.repoRoot, "rev-parse", "HEAD"))
+	staleInfo, err := git.CommitInfoFor(env.repoRoot, staleSHA)
+	if err != nil {
+		t.Fatalf("git info: %v", err)
+	}
+	if err := env.commits.createCommitEntity(env.ctx, env.projectID, env.repoEID, staleInfo, nil); err != nil {
+		t.Fatalf("inject unbound commit: %v", err)
+	}
+
+	all, _ := env.commits.ListCommits(env.ctx, env.projectID, nil)
+	if len(all) < 2 {
+		t.Fatalf("expected at least 2 commits before prune, got %d", len(all))
+	}
+	hadUnbound := false
+	for _, c := range all {
+		if c.TaskID == nil {
+			hadUnbound = true
+		}
+	}
+	if !hadUnbound {
+		t.Fatal("setup failed: no unbound commit to prune")
+	}
+
+	n, err := env.commits.PruneUnboundCommits(env.ctx, env.projectID)
+	if err != nil {
+		t.Fatalf("PruneUnboundCommits: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("pruned count = %d, want 1", n)
+	}
+
+	after, _ := env.commits.ListCommits(env.ctx, env.projectID, nil)
+	for _, c := range after {
+		if c.TaskID == nil {
+			t.Errorf("unbound commit %q survived prune", c.SHA)
+		}
+	}
+	// Bound commit must still be there.
+	stillBound, _ := env.commits.ListCommits(env.ctx, env.projectID, &bound.EntityID)
+	if len(stillBound) == 0 {
+		t.Error("bound commit was wrongly pruned")
 	}
 }
 

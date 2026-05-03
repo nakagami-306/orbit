@@ -28,6 +28,45 @@ func newCommitCmd(app *App) *cobra.Command {
 	cmd.AddCommand(newCommitListCmd(app))
 	cmd.AddCommand(newCommitBindCmd(app))
 	cmd.AddCommand(newCommitUnbindCmd(app))
+	cmd.AddCommand(newCommitPruneCmd(app))
+	return cmd
+}
+
+func newCommitPruneCmd(app *App) *cobra.Command {
+	var unbound bool
+	cmd := &cobra.Command{
+		Use:   "prune",
+		Short: "Remove commit entities that aren't bound to any task (housekeeping)",
+		Long: `Prune commits with no task binding. Use --unbound to confirm.
+
+This is intended as a one-time cleanup after switching to the task-bound-only
+scan policy: stale commits accumulated under the prior "register everything"
+behavior are removed so the projection matches the new contract. Each prune
+retracts the commit's datoms (immutable log preserved) and deletes the
+projection row.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !unbound {
+				return fmt.Errorf("--unbound is required (refusing to prune blindly)")
+			}
+			info, err := app.resolveProject()
+			if err != nil {
+				return err
+			}
+			cs := commitService(app)
+			n, err := cs.PruneUnboundCommits(cmd.Context(), info.ProjectEntityID)
+			if err != nil {
+				return err
+			}
+			if app.Format == "json" {
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
+					"action": "pruned", "count": n,
+				})
+			}
+			fmt.Printf("Pruned %d unbound commit(s)\n", n)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&unbound, "unbound", false, "Prune commits with no task binding (required for safety)")
 	return cmd
 }
 

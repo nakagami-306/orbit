@@ -279,6 +279,59 @@ func (s *CommitService) UnbindCommit(ctx context.Context, projectEntityID int64,
 	})
 }
 
+// PruneUnboundCommits removes Commit entities with no task binding and active
+// status. Used as a one-shot migration after switching to Option F (task-bound
+// only): existing p_commits rows accumulated under the prior "register everything"
+// scan policy are cleaned out so that the projection matches the new contract.
+//
+// Each prune retracts every datom of the Commit entity (preserving the immutable
+// log) and deletes the projection row directly, since the projector does not
+// yet handle full-entity retraction.
+func (s *CommitService) PruneUnboundCommits(ctx context.Context, projectEntityID int64) (int, error) {
+	rows, err := s.DB.Conn().QueryContext(ctx,
+		"SELECT entity_id FROM p_commits WHERE project_id = ? AND task_id IS NULL AND status = 'active'",
+		projectEntityID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+
+	count := 0
+	for _, commitEntityID := range ids {
+		err := s.DB.Tx(ctx, func(sqlTx *sql.Tx) error {
+			var branchID int64
+			sqlTx.QueryRow("SELECT entity_id FROM p_branches WHERE project_id = ? AND is_main = 1", projectEntityID).Scan(&branchID)
+			txID, err := eavt.BeginTx(sqlTx, nil, branchID, "system")
+			if err != nil {
+				return err
+			}
+			state, _ := eavt.EntityState(sqlTx, commitEntityID)
+			for attr, val := range state {
+				if err := eavt.RetractDatom(sqlTx, commitEntityID, attr, val, txID); err != nil {
+					return err
+				}
+			}
+			_, err = sqlTx.Exec("DELETE FROM p_commits WHERE entity_id = ?", commitEntityID)
+			return err
+		})
+		if err != nil {
+			return count, err
+		}
+		count++
+	}
+	return count, nil
+}
+
 // ListCommits returns commits for a project, optionally filtered by task entity ID.
 func (s *CommitService) ListCommits(ctx context.Context, projectEntityID int64, taskFilter *int64) ([]Commit, error) {
 	q := `SELECT entity_id, stable_id, project_id, repo_id, sha,
